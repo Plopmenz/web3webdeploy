@@ -1,13 +1,21 @@
 import "@/styles/globals.css"
+import "@rainbow-me/rainbowkit/styles.css"
 
 import { Metadata, Viewport } from "next"
+import { config as dotEnvConfig } from "dotenv"
+import { WagmiConfig } from "wagmi"
 
 import { siteConfig } from "@/config/site"
+import { config } from "@/config/wagmi-config"
 import { fontSans } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
+import { ThemedRaindbowProvider } from "@/components/custom/themed-rainbow-provider"
 import { SiteHeader } from "@/components/site-header"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
+
+// Make configurable path
+dotEnvConfig({ path: "../.env" })
 
 export const metadata: Metadata = {
   title: {
@@ -44,11 +52,15 @@ export default function RootLayout({ children }: RootLayoutProps) {
           )}
         >
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <div className="relative flex min-h-screen flex-col">
-              <SiteHeader />
-              <div className="flex-1">{children}</div>
-            </div>
-            <TailwindIndicator />
+            <WagmiConfig config={config}>
+              <ThemedRaindbowProvider>
+                <div className="relative flex min-h-screen flex-col">
+                  <SiteHeader />
+                  <div className="flex-1">{children}</div>
+                </div>
+                <TailwindIndicator />{" "}
+              </ThemedRaindbowProvider>
+            </WagmiConfig>
           </ThemeProvider>
         </body>
       </html>

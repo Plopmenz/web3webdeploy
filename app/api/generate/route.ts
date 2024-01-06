@@ -1,13 +1,17 @@
-import { generate } from "@/lib/deployer"
+import { generate } from "@/lib/deployer.ts"
 
-export async function POST() {
+import { GenerateRequest } from "../apiTypes.ts"
+
+export async function POST(req: Request) {
   try {
+    const settings = JSON.parse(await req.text()) as GenerateRequest
     await generate({
+      ...settings,
       transactionSettings: {
-        chainId: BigInt(1),
-        nonce: BigInt(0),
-        baseFee: BigInt(25),
-        priorityFee: BigInt(3),
+        chainId: BigInt(settings.transactionSettings.chainId),
+        nonce: BigInt(settings.transactionSettings.nonce),
+        baseFee: BigInt(settings.transactionSettings.baseFee),
+        priorityFee: BigInt(settings.transactionSettings.priorityFee),
       },
     })
     return Response.json({ message: "OK" }, { status: 200 })
