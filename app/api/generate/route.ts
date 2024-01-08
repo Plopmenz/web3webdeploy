@@ -7,12 +7,9 @@ export async function POST(req: Request) {
     const settings = JSON.parse(await req.text()) as GenerateRequest
     await generate({
       ...settings,
-      transactionSettings: {
-        chainId: BigInt(settings.transactionSettings.chainId),
-        nonce: BigInt(settings.transactionSettings.nonce),
-        baseFee: BigInt(settings.transactionSettings.baseFee),
-        priorityFee: BigInt(settings.transactionSettings.priorityFee),
-      },
+      defaultChainId: BigInt(settings.defaultChainId),
+      defaultBaseFee: BigInt(settings.defaultBaseFee),
+      defaultPriorityFee: BigInt(settings.defaultPriorityFee),
     })
     return Response.json({ message: "OK" }, { status: 200 })
   } catch (error: any) {

@@ -1,43 +1,14 @@
 "use client"
 
 import { connectorsForWallets, getDefaultWallets } from "@rainbow-me/rainbowkit"
-import {
-  arbitrum,
-  aurora,
-  avalanche,
-  base,
-  bsc,
-  celo,
-  fantom,
-  gnosis,
-  harmonyOne,
-  linea,
-  mainnet,
-  polygon,
-  sepolia,
-} from "viem/chains"
+import * as allChains from "viem/chains"
 import { configureChains, createConfig } from "wagmi"
 import { infuraProvider } from "wagmi/providers/infura"
 import { publicProvider } from "wagmi/providers/public"
 
-const { chains, publicClient } = configureChains(
-  [
-    mainnet,
-    sepolia,
-    arbitrum,
-    aurora,
-    avalanche,
-    base,
-    bsc,
-    celo,
-    fantom,
-    gnosis,
-    harmonyOne,
-    linea,
-    polygon,
-  ],
-  [publicProvider()]
-)
+const { chains, publicClient } = configureChains(Object.values(allChains), [
+  publicProvider(),
+])
 
 export const appName = "web3webdeploy" as const
 const projectId = "fdec1b7bedfc107d40d256a8461e7dee" as const // WalletConnect
@@ -54,4 +25,4 @@ export const config = createConfig({
 })
 
 export { chains }
-export const defaultChain = sepolia
+export const defaultChain = allChains.sepolia

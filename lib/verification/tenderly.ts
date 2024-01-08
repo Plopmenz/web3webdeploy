@@ -17,52 +17,57 @@ export async function verifyTenderly({
   deploymentTransaction: UnsignedDeploymentTransaction
 }): Promise<string> {
   const tenderly = getSdk(deploymentTransaction.transactionSettings.chainId)
-  await tenderly.contracts.add(deploymentTransaction.deploymentAddress, {
-    displayName: deploymentTransaction.id,
-  })
-  await tenderly.contracts.verify(deploymentTransaction.deploymentAddress, {
-    config: {
-      mode: `public`,
-    },
-    contractToVerify: deploymentTransaction.artifact.contractName,
-    solc: {
-      version: deploymentTransaction.artifact.compiler.version.split(
-        "+"
-      )[0] as any,
-      sources: deploymentTransaction.artifact.jsonDescription.sources,
-      settings: {
-        remappings:
-          deploymentTransaction.artifact.jsonDescription.settings?.remappings,
-        optimizer: {
-          enabled:
-            deploymentTransaction.artifact.jsonDescription.settings?.optimizer
-              ?.enabled,
-          runs: deploymentTransaction.artifact.jsonDescription.settings
-            ?.optimizer?.runs,
-        },
-        evmVersion: deploymentTransaction.artifact.jsonDescription.evmVersion,
+  await tenderly.contracts.add(
+    deploymentTransaction.deploymentAddress.toLowerCase(),
+    {
+      // Displayname is not set currently for some reason
+      displayName: deploymentTransaction.id,
+    }
+  )
+  await tenderly.contracts.verify(
+    deploymentTransaction.deploymentAddress.toLowerCase(),
+    {
+      config: {
+        mode: `public`,
       },
-    },
-  })
-  return JSON.stringify({
-    address: deploymentTransaction.deploymentAddress,
-    chainId: deploymentTransaction.transactionSettings.chainId,
-  })
+      contractToVerify: deploymentTransaction.artifact.contractName,
+      solc: {
+        version: deploymentTransaction.artifact.compiler.version.split(
+          "+"
+        )[0] as any,
+        sources: deploymentTransaction.artifact.jsonDescription.sources,
+        settings: {
+          remappings:
+            deploymentTransaction.artifact.jsonDescription.settings?.remappings,
+          optimizer: {
+            enabled:
+              deploymentTransaction.artifact.jsonDescription.settings?.optimizer
+                ?.enabled,
+            runs: deploymentTransaction.artifact.jsonDescription.settings
+              ?.optimizer?.runs,
+          },
+          evmVersion: deploymentTransaction.artifact.jsonDescription.evmVersion,
+        },
+      },
+    }
+  )
+  return ""
 }
 
 export async function checkPendingTenderly({
-  guid,
+  deploymentTransaction,
+  additionalInfo,
 }: {
-  guid: string
-}): Promise<{ verified: boolean; message: string }> {
+  deploymentTransaction: UnsignedDeploymentTransaction
+  additionalInfo: string
+}): Promise<{ verified: boolean; busy?: boolean; message: string }> {
+  // Could also call checkVerifiedSourcify here instead (but we lose the message)
   try {
-    const contractInfo = JSON.parse(guid) as {
-      address: Address
-      chainId: bigint
-    }
-    await getSdk(contractInfo.chainId).contracts.get(contractInfo.address)
+    await getSdk(
+      deploymentTransaction.transactionSettings.chainId
+    ).contracts.get(deploymentTransaction.deploymentAddress.toLowerCase())
     return { verified: true, message: "Verified" }
-  } catch (error) {
+  } catch (error: any) {
     return { verified: false, message: JSON.stringify(error) }
   }
 }

@@ -70,9 +70,9 @@ export interface Artifact {
   compiler: {
     version: `v${string}`
   }
-  contractName: string // "erc20.sol:ERC20"
+  contractName: string
   jsonDescription: JsonDescription
-  license: string // "MIT"
+  license: string
 }
 
 export interface TransactionSettings {
@@ -83,7 +83,7 @@ export interface TransactionSettings {
 }
 
 export interface UnsignedTransactionBase {
-  type: "transaction" | "deployment"
+  type: "function" | "deployment"
   id: string // nonce_contractName
   to?: Address // undefined for create deployments
   value: bigint
@@ -93,8 +93,8 @@ export interface UnsignedTransactionBase {
   transactionSettings: TransactionSettings
 }
 
-export type UnsignedRawTransaction = UnsignedTransactionBase & {
-  type: "transaction"
+export type UnsignedFunctionTransaction = UnsignedTransactionBase & {
+  type: "function"
   functionName: string
   functionArgs: any[]
 }
@@ -103,6 +103,7 @@ export type UnsignedDeploymentTransaction = UnsignedTransactionBase & {
   type: "deployment"
   deploymentAddress: Address
   constructorArgs: any[]
+  salt?: string
   artifact: Artifact
 }
 
@@ -125,6 +126,13 @@ export type SubmittedTransaction = UnsignedTransactionBase & {
 export interface DeployInfo {
   contract: string
   args?: any[]
+  create2?: boolean
+  salt?: string | Uint8Array
+  from?: Address
+  chainId?: bigint
+  nonce?: bigint
+  baseFee?: bigint
+  priorityFee?: bigint
 }
 
 export interface Deployer {
@@ -136,8 +144,10 @@ export interface DeployScript {
 }
 
 export interface GenerateSettings {
-  transactionSettings: TransactionSettings
-  from: Address
+  defaultFrom: Address
+  defaultChainId: bigint
+  defaultBaseFee: bigint
+  defaultPriorityFee: bigint
 }
 
 export enum VerificationServices {

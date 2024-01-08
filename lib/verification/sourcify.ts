@@ -15,27 +15,28 @@ export async function verifySourcify({
       chainId: deploymentTransaction.transactionSettings.chainId.toString(),
     }
   )
-  if (response.data.status !== "perfect") {
+  if (response.data.result[0].status !== "perfect") {
     console.warn(
       `Sourcify version wasn't perfect: ${JSON.stringify(response.data)}`
     )
   }
-  return JSON.stringify({
-    addresses: deploymentTransaction.deploymentAddress,
-    chainIds: deploymentTransaction.transactionSettings.chainId,
-  })
+  return ""
 }
 
 export async function checkPendingSourcify({
-  guid,
+  deploymentTransaction,
+  additionalInfo,
 }: {
-  guid: string
-}): Promise<{ verified: boolean; message: string }> {
+  deploymentTransaction: UnsignedDeploymentTransaction
+  additionalInfo: string
+}): Promise<{ verified: boolean; busy?: boolean; message: string }> {
+  // Could also call checkVerifiedSourcify here instead (but we lose the message)
   const response = await axios.get(
     "https://sourcify.dev/server/check-by-addresses",
     {
       params: {
-        ...JSON.parse(guid),
+        addresses: deploymentTransaction.deploymentAddress,
+        chainIds: deploymentTransaction.transactionSettings.chainId.toString(),
       },
     }
   )
@@ -56,7 +57,7 @@ export async function checkVerifiedSourcify({
     {
       params: {
         addresses: deploymentTransaction.deploymentAddress,
-        chainIds: deploymentTransaction.transactionSettings.chainId,
+        chainIds: deploymentTransaction.transactionSettings.chainId.toString(),
       },
     }
   )

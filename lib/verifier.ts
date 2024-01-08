@@ -36,19 +36,21 @@ export async function verify({
 }
 
 export async function checkPending({
-  guid,
+  deploymentTransaction,
+  additionalInfo,
   service,
 }: {
-  guid: string
+  deploymentTransaction: UnsignedDeploymentTransaction
+  additionalInfo: string
   service: VerificationServices
-}): Promise<{ verified: boolean; message: string }> {
+}): Promise<{ verified: boolean; busy?: boolean; message: string }> {
   switch (service) {
     case VerificationServices.Etherscan:
-      return checkPendingEtherscan({ guid })
+      return checkPendingEtherscan({ deploymentTransaction, additionalInfo })
     case VerificationServices.Sourcify:
-      return checkPendingSourcify({ guid })
+      return checkPendingSourcify({ deploymentTransaction, additionalInfo })
     case VerificationServices.Tenderly:
-      return checkPendingTenderly({ guid })
+      return checkPendingTenderly({ deploymentTransaction, additionalInfo })
     default:
       console.warn(`Check pending not implemented for ${service}`)
       return { verified: false, message: "NOTIMPLEMENTED" }

@@ -12,6 +12,7 @@ import {
 import axios from "axios"
 import { useWaitForTransaction } from "wagmi"
 
+import { getExplorer, getVerificationExplorer } from "@/lib/chains"
 import {
   VerifyPendingRequest,
   VerifyRequest,
@@ -43,11 +44,14 @@ async function getVerified(
 }
 
 async function pendingVerification(
-  requestGuid: string,
+  transaction: UnsignedTransactionBase,
+  additionalInfo: string,
   service: VerificationServices
 ): Promise<VerifyState> {
   const request: VerifyPendingRequest = {
-    verificationGuid: requestGuid,
+    // Might cause issues JSON.stringify with bigints? Can use the custom transactionToString, but will put whole transactionjson in string then (instead of actual sub-json)
+    deploymentTransaction: transaction as UnsignedDeploymentTransaction,
+    additionalInfo: additionalInfo,
     service: service,
   }
   const response = await axios.post(
@@ -57,14 +61,16 @@ async function pendingVerification(
 
   if (!response.data.verified) {
     console.warn(
-      `Verification ${requestGuid} returned with status ${response.data.message}`
+      `Verification of ${transaction.id} with ${additionalInfo} returned with status ${response.data.message}`
     )
   }
-  return response.data.verified
-    ? VerifyState.Verified
-    : response.data.message === "BUSY"
-      ? VerifyState.Verifying
-      : VerifyState.NotVerified
+
+  if (response.data.busy) {
+    console.log(response.data.busy)
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    return pendingVerification(transaction, additionalInfo, service)
+  }
+  return response.data.verified ? VerifyState.Verified : VerifyState.NotVerified
 }
 
 async function startVerify(
@@ -77,7 +83,7 @@ async function startVerify(
     service: service,
   }
   const response = await axios.post("/api/verify", JSON.stringify(request))
-  return pendingVerification(response.data.verifyInfo, service)
+  return pendingVerification(transaction, response.data.verifyInfo, service)
 }
 
 export function SubmittedTransactionComponent({
@@ -87,6 +93,7 @@ export function SubmittedTransactionComponent({
 }) {
   const { isLoading, isError, error } = useWaitForTransaction({
     hash: transaction.submitted.transactionHash,
+    chainId: Number(transaction.transactionSettings.chainId),
   })
 
   const verified = useMemo<{
@@ -119,6 +126,11 @@ export function SubmittedTransactionComponent({
     }
   }, [transaction, verified])
 
+  const explorer = getExplorer(transaction.transactionSettings.chainId)
+  const verificationExplorer = getVerificationExplorer(
+    transaction.transactionSettings.chainId
+  )
+
   return (
     <div className="grid grid-cols-1 gap-2 items-center">
       <h2 className="text-l">
@@ -132,18 +144,21 @@ export function SubmittedTransactionComponent({
         <li>
           Status: {isLoading ? "Waiting for confirmation..." : "Confirmed!"}
         </li>
-        <Link
-          href={`https://sepolia.etherscan.io/tx/${transaction.submitted.transactionHash}`}
-          target="_blank"
-          passHref
-        >
-          <Button className="w-full">View on Etherscan</Button>
-        </Link>
+        {explorer && (
+          <Link
+            href={`${explorer.url}/tx/${transaction.submitted.transactionHash}`}
+            target="_blank"
+            passHref
+          >
+            <Button className="w-full">View on {explorer.name}</Button>
+          </Link>
+        )}
         <div>{isError && <h2>Error!! {error?.message}</h2>}</div>
       </div>
       {transaction.type === "deployment" && (
         <div className="grid grid-cols-1 gap-2 items-center">
           <VerifyButton
+            serviceName={verificationExplorer?.name}
             service={VerificationServices.Etherscan}
             verificationState={verified[VerificationServices.Etherscan].value}
             onClick={() => {
@@ -188,10 +203,12 @@ export function SubmittedTransactionComponent({
 }
 
 function VerifyButton({
+  serviceName,
   service,
   verificationState,
   onClick,
 }: {
+  serviceName?: string
   service: VerificationServices
   verificationState: VerifyState
   onClick: () => void
@@ -199,7 +216,7 @@ function VerifyButton({
   return (
     <div className="grid grid-cols-2 items-center">
       <li>
-        Verification on {service}: {verificationState}
+        Verification on {serviceName ?? service}: {verificationState}
       </li>
       <Button
         onClick={onClick}

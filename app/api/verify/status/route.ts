@@ -11,9 +11,6 @@ export async function POST(req: Request) {
     })
     return Response.json({ verified: verified }, { status: 200 })
   } catch (error: any) {
-    return Response.json(
-      { error: error?.message ?? JSON.stringify(error) },
-      { status: 500 }
-    )
+    return Response.json({ error: JSON.stringify(error) }, { status: 500 })
   }
 }

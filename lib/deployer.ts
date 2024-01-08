@@ -9,10 +9,12 @@ import {
   getCreateAddress,
   http,
   padBytes,
+  PublicClient,
   toBytes,
 } from "viem"
 
 import {
+  Address,
   Artifact,
   Bytes,
   DeployInfo,
@@ -27,8 +29,9 @@ import {
 import { getChain } from "./chains"
 import { stringToTransaction, transactionToString } from "./transactionString"
 
-const useCreate2 = true
-const salt = padBytes(toBytes("web3webdeploy"), { size: 32 })
+const deleteUnfishedDeploymentOnGenerate = true
+const defaultCreate2 = false
+const defaultSalt = padBytes(toBytes("web3webdeploy"), { size: 32 })
 // From https://book.getfoundry.sh/tutorials/create2-tutorial (using https://github.com/Arachnid/deterministic-deployment-proxy)
 const deterministicDeployer = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
 
@@ -42,54 +45,97 @@ const artifactsDir = `${baseDir}/out` as const
 export async function generate(settings: GenerateSettings) {
   await promisify(exec)("forge compile", { cwd: baseDir })
 
-  const publicClient = createPublicClient({
-    transport: http(),
-    chain: getChain(Number(settings.transactionSettings.chainId)),
-  })
-  let nonce = settings.transactionSettings.nonce
+  const chainVariables: {
+    [chainId: string]: {
+      publicClient: PublicClient
+      nonce: { [address: Address]: bigint }
+    }
+  } = {}
+
+  const getNonce = async (address: Address, chainId: bigint) => {
+    const variables = chainVariables[chainId.toString()]
+
+    if (!Object.hasOwn(variables.nonce, address)) {
+      variables.nonce[address] = BigInt(
+        await variables.publicClient.getTransactionCount({ address: address })
+      )
+    }
+
+    return variables.nonce[address]
+  }
+
   const deployer = {
     deploy: async (deployInfo: DeployInfo) => {
+      const chainId = deployInfo.chainId ?? settings.defaultChainId
+      if (!Object.hasOwn(chainVariables, chainId.toString())) {
+        chainVariables[chainId.toString()] = {
+          publicClient: createPublicClient({
+            chain: getChain(chainId),
+            transport: http(),
+          }) as PublicClient,
+          nonce: {},
+        }
+      }
+      const from = deployInfo.from ?? settings.defaultFrom
+      const baseFee = deployInfo.baseFee ?? settings.defaultBaseFee
+      const priorityFee = deployInfo.priorityFee ?? settings.defaultPriorityFee
+      const nonce = await getNonce(from, chainId)
+
+      const create2 = deployInfo.create2 ?? defaultCreate2
+      const salt = deployInfo.salt
+        ? typeof deployInfo.salt === "string"
+          ? padBytes(toBytes(deployInfo.salt), { size: 32 })
+          : deployInfo.salt
+        : defaultSalt
+
       const artifact = await getArtifact(deployInfo.contract)
-      const predictedAddress = useCreate2
+      const predictedAddress = create2
         ? getCreate2Address({
             from: deterministicDeployer,
             salt: salt,
             bytecode: artifact.bytecode,
           })
         : getCreateAddress({
-            from: settings.from,
+            from: from,
             nonce: nonce,
           })
 
       const baseTransaction = {
-        to: useCreate2 ? deterministicDeployer : undefined,
+        to: create2 ? deterministicDeployer : undefined,
         value: BigInt(0),
-        data: useCreate2
+        data: create2
           ? ((fromBytes<"hex">(salt, { to: "hex" }) +
               encodeDeployData({
                 abi: artifact.abi,
                 bytecode: artifact.bytecode,
                 args: deployInfo.args,
               }).replace("0x", "")) as Bytes)
-          : artifact.bytecode,
+          : encodeDeployData({
+              abi: artifact.abi,
+              bytecode: artifact.bytecode,
+              args: deployInfo.args,
+            }),
       } as const
       const deployTransaction: UnsignedDeploymentTransaction = {
         type: "deployment",
-        id: `${nonce}_${deployInfo.contract}`,
+        id: `${chainId}_${nonce}_${deployInfo.contract}`,
         deploymentAddress: predictedAddress,
         constructorArgs: deployInfo.args ?? [],
         ...baseTransaction,
-        gas: await publicClient
+        gas: await chainVariables[chainId.toString()].publicClient
           .estimateGas({
-            account: settings.from,
+            account: from,
             ...baseTransaction,
           })
           .catch(() => BigInt(0)),
-        from: settings.from,
+        from: from,
         transactionSettings: {
-          ...settings.transactionSettings,
+          chainId: chainId,
           nonce: nonce,
+          baseFee: baseFee,
+          priorityFee: priorityFee,
         },
+        salt: create2 ? Buffer.from(salt).toString() : undefined,
         artifact: artifact,
       }
       if (deployTransaction.gas === BigInt(0)) {
@@ -102,43 +148,45 @@ export async function generate(settings: GenerateSettings) {
         transactionToString(deployTransaction)
       )
 
-      nonce++
+      chainVariables[chainId.toString()].nonce[from]++
       return predictedAddress
     },
   }
 
-  // Check if all directories are empty (or non-existent)
-  const subDirectories = ["unsigned", "queued"] // Except submitted
-  const allDirsEmpty = !(
-    await Promise.all(
-      subDirectories.map(
-        (d) =>
-          readdir(`${deploymentsDir}/${d}`)
-            .then((files) => files.length == 0)
-            .catch((error) => true) // Assume expection means non-existent
-      )
-    )
-  ).includes(false)
-
-  if (!allDirsEmpty) {
-    console.warn("Unfinished deployment found, want to resume instead?")
-    // Clear all leftover transactions
-    await Promise.all(
-      subDirectories.map((d) =>
-        rm(`${deploymentsDir}/${d}`, { force: true, recursive: true }).catch(
-          (error: any) => {
-            throw new Error(
-              `Could not clean up directory ${deploymentsDir}/${d}: ${
-                error?.message ?? JSON.stringify(error)
-              }`
-            )
-          }
+  if (deleteUnfishedDeploymentOnGenerate) {
+    // Check if all directories are empty (or non-existent)
+    const subDirectories = ["unsigned", "queued"] // Except submitted
+    const allDirsEmpty = !(
+      await Promise.all(
+        subDirectories.map(
+          (d) =>
+            readdir(`${deploymentsDir}/${d}`)
+              .then((files) => files.length == 0)
+              .catch((error) => true) // Assume expection means non-existent
         )
       )
-    )
+    ).includes(false)
+
+    if (!allDirsEmpty) {
+      console.warn("Unfinished deployment found, deleting...")
+      // Clear all leftover transactions
+      await Promise.all(
+        subDirectories.map((d) =>
+          rm(`${deploymentsDir}/${d}`, { force: true, recursive: true }).catch(
+            (error: any) => {
+              throw new Error(
+                `Could not clean up directory ${deploymentsDir}/${d}: ${
+                  error?.message ?? JSON.stringify(error)
+                }`
+              )
+            }
+          )
+        )
+      )
+    }
   }
 
-  // redeploy
+  // execute deploy functions
   const deployScripts = await readdir(deployDir)
   for (let i = 0; i < deployScripts.length; i++) {
     const deployScript: DeployScript = await eval(

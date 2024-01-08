@@ -1,15 +1,11 @@
 import {
-  Address,
   Bytes,
-  TransactionSettings,
+  GenerateSettings,
   UnsignedDeploymentTransaction,
   VerificationServices,
 } from "@/types.ts"
 
-export interface GenerateRequest {
-  transactionSettings: TransactionSettings
-  from: Address
-}
+export type GenerateRequest = GenerateSettings
 
 export interface UnsignedToSubmittedRequest {
   transactionId: string
@@ -22,7 +18,8 @@ export interface VerifyRequest {
 }
 
 export interface VerifyPendingRequest {
-  verificationGuid: string
+  deploymentTransaction: UnsignedDeploymentTransaction
+  additionalInfo: string
   service: VerificationServices
 }
 
