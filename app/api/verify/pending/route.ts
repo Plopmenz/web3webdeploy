@@ -1,6 +1,6 @@
-import { checkPending } from "@/lib/verifier.ts"
+import { checkPending } from "@/lib/verifier"
 
-import { VerifyPendingRequest } from "../../apiTypes.ts"
+import { VerifyPendingRequest } from "../../apiTypes"
 
 export async function POST(req: Request) {
   try {

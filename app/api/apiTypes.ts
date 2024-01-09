@@ -3,11 +3,12 @@ import {
   GenerateSettings,
   UnsignedDeploymentTransaction,
   VerificationServices,
-} from "@/types.ts"
+} from "@/types"
 
 export type GenerateRequest = GenerateSettings
 
 export interface UnsignedToSubmittedRequest {
+  batchId: string
   transactionId: string
   transactionHash: Bytes
 }

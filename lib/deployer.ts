@@ -1,6 +1,10 @@
 import { exec } from "child_process"
-import { mkdir, readdir, readFile, rm, writeFile } from "fs/promises"
+import { mkdir, readdir, readFile, rm, rmdir, writeFile } from "fs/promises"
+import module, { Module } from "module"
+import path from "path"
 import { promisify } from "util"
+import esbuild from "esbuild"
+import ts from "typescript"
 import {
   createPublicClient,
   encodeDeployData,
@@ -27,6 +31,7 @@ import {
   UnsignedTransactionBase,
 } from "../types"
 import { getChain } from "./chains"
+import { PromiseObject } from "./promiseHelper"
 import { stringToTransaction, transactionToString } from "./transactionString"
 
 const deleteUnfishedDeploymentOnGenerate = true
@@ -63,6 +68,17 @@ export async function generate(settings: GenerateSettings) {
 
     return variables.nonce[address]
   }
+
+  const generationStart = new Date()
+  const generationYYYY = generationStart.getFullYear().toString()
+  const generationMM = (generationStart.getMonth() + 1)
+    .toString()
+    .padStart(2, "0")
+  const generationDD = generationStart.getDate().toString().padStart(2, "0")
+  const generationHH = generationStart.getHours().toString().padStart(2, "0")
+  const generationmm = generationStart.getMinutes().toString().padStart(2, "0")
+  const generationSS = generationStart.getSeconds().toString().padStart(2, "0")
+  const batchId = `${generationYYYY}${generationMM}${generationDD}_${generationHH}${generationmm}${generationSS}`
 
   const deployer = {
     deploy: async (deployInfo: DeployInfo) => {
@@ -119,6 +135,7 @@ export async function generate(settings: GenerateSettings) {
       const deployTransaction: UnsignedDeploymentTransaction = {
         type: "deployment",
         id: `${chainId}_${nonce}_${deployInfo.contract}`,
+        batch: batchId,
         deploymentAddress: predictedAddress,
         constructorArgs: deployInfo.args ?? [],
         ...baseTransaction,
@@ -142,9 +159,9 @@ export async function generate(settings: GenerateSettings) {
         console.warn(`Could not estimate gas for ${deployTransaction.id}`)
       }
 
-      await mkdir(unsignedTransactionsDir, { recursive: true })
+      await mkdir(`${unsignedTransactionsDir}/${batchId}`, { recursive: true })
       await writeFile(
-        `${unsignedTransactionsDir}/${deployTransaction.id}.json`,
+        `${unsignedTransactionsDir}/${batchId}/${deployTransaction.id}.json`,
         transactionToString(deployTransaction)
       )
 
@@ -189,13 +206,32 @@ export async function generate(settings: GenerateSettings) {
   // execute deploy functions
   const deployScripts = await readdir(deployDir)
   for (let i = 0; i < deployScripts.length; i++) {
-    const deployScript: DeployScript = await eval(
-      // To bypass the webpack overrides on importing files (so the frontend does not need to be rebuilt in case the deployment scripts change)
-      `async function importDeployScript() { const tsImport = await import("ts-import"); return await tsImport.load("${deployDir}/${deployScripts[i]}"); } importDeployScript().catch(console.error);`
-    )
-    if (!deployScript.deploy) {
+    const filePath = `${deployDir}/${deployScripts[i]}`
+    const fileContent = await readFile(filePath, {
+      encoding: "utf-8",
+    })
+
+    // Transform ts file to a single js file (without imports)
+    const bundle = await esbuild.build({
+      bundle: true,
+      write: false,
+      platform: "node",
+      stdin: {
+        contents: fileContent,
+        loader: "ts",
+        resolveDir: path.resolve(deployDir),
+        sourcefile: path.resolve(filePath),
+      },
+    })
+    const jsContent = bundle.outputFiles[0].text
+
+    var m = new Module(filePath) as any // Type signatures do not expose _compile
+    m._compile(jsContent, "")
+    const deployScript: DeployScript = m.exports
+
+    if (!deployScript?.deploy) {
       console.warn(
-        `Script ${deployScript} in ${deployDir} does not export a correct deploy function.`
+        `Script ${filePath} does not export a correct deploy function.`
       )
       continue
     }
@@ -204,22 +240,45 @@ export async function generate(settings: GenerateSettings) {
   }
 }
 
-export async function getUnsignedTransactions(): Promise<
-  UnsignedTransactionBase[]
-> {
+async function getTransactions<T extends UnsignedTransactionBase>(
+  transactionsDir: string
+): Promise<{ [batchId: string]: T[] }> {
+  const transactionBatches = await readdir(transactionsDir)
+  const transactions: {
+    [batchId: string]: Promise<T[]>
+  } = {}
+  for (let i = 0; i < transactionBatches.length; i++) {
+    transactions[transactionBatches[i]] = readdir(
+      `${transactionsDir}/${transactionBatches[i]}`
+    ).then((transactionFiles) =>
+      Promise.all(
+        transactionFiles.map(async (transactionFile) => {
+          const transactionContent = await readFile(
+            `${transactionsDir}/${transactionBatches[i]}/${transactionFile}`,
+            { encoding: "utf-8" }
+          )
+
+          const transaction = stringToTransaction(transactionContent) as T
+          if (transactionFile !== `${transaction.id}.json`) {
+            // Will be an issue when trying to move the transaction file (such as unsigned -> submitted)
+            console.warn(
+              `Transaction file ${transactionFile} does not match it's id ${transaction.id}`
+            )
+          }
+          return transaction
+        })
+      )
+    )
+  }
+  return PromiseObject(transactions)
+}
+
+export async function getUnsignedTransactions(): Promise<{
+  [batchId: string]: UnsignedTransactionBase[]
+}> {
   try {
-    const unsignedTransactionFiles = await readdir(unsignedTransactionsDir)
-    return Promise.all(
-      unsignedTransactionFiles.map(async (transactionFile) => {
-        const transactionContent = await readFile(
-          `${unsignedTransactionsDir}/${transactionFile}`,
-          { encoding: "utf-8" }
-        )
-        // Could check if fileName === transactionId(.json)
-        return stringToTransaction(
-          transactionContent
-        ) as UnsignedTransactionBase
-      })
+    return await getTransactions<UnsignedTransactionBase>(
+      unsignedTransactionsDir
     )
   } catch (error: any) {
     console.warn(
@@ -227,32 +286,22 @@ export async function getUnsignedTransactions(): Promise<
         error?.message ?? JSON.stringify(error)
       }`
     )
-    return []
+    return {}
   }
 }
 
-export async function getSubmittedTransactions(): Promise<
-  SubmittedTransaction[]
-> {
+export async function getSubmittedTransactions(): Promise<{
+  [batchId: string]: SubmittedTransaction[]
+}> {
   try {
-    const submittedTransactionFiles = await readdir(submittedTransactionsDir)
-    return Promise.all(
-      submittedTransactionFiles.map(async (transactionFile) => {
-        const transactionContent = await readFile(
-          `${submittedTransactionsDir}/${transactionFile}`,
-          { encoding: "utf-8" }
-        )
-        // Could check if fileName === transactionId(.json)
-        return stringToTransaction(transactionContent) as SubmittedTransaction
-      })
-    )
+    return await getTransactions<SubmittedTransaction>(submittedTransactionsDir)
   } catch (error: any) {
     console.warn(
       `Could not load submitted transactions: ${
         error?.message ?? JSON.stringify(error)
       }`
     )
-    return []
+    return {}
   }
 }
 
@@ -314,10 +363,11 @@ async function forgeToArtifact(
 }
 
 export async function unsignedToSubmitted(
+  batchId: string,
   transactionId: string,
   transactionHash: Bytes
 ) {
-  const oldPath = `${unsignedTransactionsDir}/${transactionId}.json`
+  const oldPath = `${unsignedTransactionsDir}/${batchId}/${transactionId}.json`
   try {
     const oldData = await readFile(oldPath, { encoding: "utf-8" })
     const newData: SubmittedTransaction = {
@@ -327,15 +377,29 @@ export async function unsignedToSubmitted(
         date: new Date(),
       },
     }
-    await mkdir(submittedTransactionsDir, { recursive: true })
+    await mkdir(`${submittedTransactionsDir}/${batchId}`, { recursive: true })
     await writeFile(
-      `${submittedTransactionsDir}/${transactionId}.json`,
+      `${submittedTransactionsDir}/${batchId}/${transactionId}.json`,
       transactionToString(newData)
     )
     await rm(oldPath)
   } catch (error: any) {
     throw new Error(
       `Could not move unsigned transaction at ${oldPath} to submitted: ${
+        error?.message ?? JSON.stringify(error)
+      }`
+    )
+  }
+
+  const batchDir = `${unsignedTransactionsDir}/${batchId}`
+  try {
+    const files = await readdir(batchDir)
+    if (files.length === 0) {
+      await rmdir(batchDir)
+    }
+  } catch (error: any) {
+    throw new Error(
+      `Could not remove empty batch directory at ${batchDir}: ${
         error?.message ?? JSON.stringify(error)
       }`
     )

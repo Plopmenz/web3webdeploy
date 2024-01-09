@@ -2,8 +2,10 @@ import { SubmittedTransaction, UnsignedTransactionBase } from "@/types"
 
 import "./bigintJson"
 
-export function sanitizeTransaction(transaction: UnsignedTransactionBase) {
-  const submittedTranscation = transaction as SubmittedTransaction
+export function sanitizeTransaction<T extends UnsignedTransactionBase>(
+  transaction: T
+): T {
+  const submittedTranscation = transaction as any as SubmittedTransaction
   return {
     ...transaction,
     value: BigInt(transaction.value),

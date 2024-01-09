@@ -84,7 +84,8 @@ export interface TransactionSettings {
 
 export interface UnsignedTransactionBase {
   type: "function" | "deployment"
-  id: string // nonce_contractName
+  id: string
+  batch: string
   to?: Address // undefined for create deployments
   value: bigint
   data: Bytes

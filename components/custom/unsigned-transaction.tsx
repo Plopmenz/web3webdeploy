@@ -54,6 +54,7 @@ export function UnsignedTransactionComponent({
       })
     }
     const request: UnsignedToSubmittedRequest = {
+      batchId: transaction.batch,
       transactionId: transaction.id,
       transactionHash: transactionHash,
     }

@@ -15,7 +15,6 @@ import { sanitizeTransaction } from "@/lib/transactionString"
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -23,15 +22,21 @@ import {
 } from "@/components/ui/form"
 import { GenerateRequest } from "@/app/api/apiTypes"
 
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "../ui/accordion"
 import { Button } from "../ui/button"
 import { Input } from "../ui/input"
-import { Label } from "../ui/label"
 import { SubmittedTransactionComponent } from "./submitted-transaction"
+import { TransactionBatch } from "./transaction-batch"
 import { UnsignedTransactionComponent } from "./unsigned-transaction"
 
 interface AllTransactions {
-  unsigned: UnsignedTransactionBase[]
-  submitted: SubmittedTransaction[]
+  unsigned: { [batchId: string]: UnsignedTransactionBase[] }
+  submitted: { [batchId: string]: SubmittedTransaction[] }
 }
 export function Transactions() {
   const generateForm = z.object({
@@ -40,8 +45,8 @@ export function Transactions() {
 
   const [generating, setGenerating] = useState<boolean>(false)
   const [transactions, setTransactions] = useState<AllTransactions>({
-    unsigned: [],
-    submitted: [],
+    unsigned: {},
+    submitted: {},
   })
   const [customGasFee, setCustomGasFee] = useState<boolean>(false)
   const [baseFee, setBaseFee] = useState<bigint>(BigInt(0))
@@ -54,7 +59,7 @@ export function Transactions() {
 
   const chainId = useChainId()
   const { address } = useAccount()
-  const publicClient = usePublicClient()
+  const publicClient = usePublicClient({ chainId: chainId })
 
   useEffect(() => {
     if (customGasFee) {
@@ -76,7 +81,7 @@ export function Transactions() {
     return () => {
       stop = true
     }
-  }, [customGasFee])
+  }, [publicClient, customGasFee])
 
   useEffect(() => {
     if (!generating) {
@@ -85,7 +90,7 @@ export function Transactions() {
 
     const generate = async () => {
       if (!address) {
-        console.error("Tried to generate without publicClient / address")
+        console.error("Tried to generate without address")
         setGenerating(false)
         return
       }
@@ -106,9 +111,21 @@ export function Transactions() {
   const getTransactions = async () => {
     const { data } = await axios.post("/api/transactions")
 
+    const sanitize = <T extends UnsignedTransactionBase>(unsanitized: {
+      [batchId: string]: T[]
+    }) => {
+      return Object.keys(unsanitized).reduce(
+        (acc: typeof unsanitized, curr: string) => {
+          acc[curr] = unsanitized[curr].map(sanitizeTransaction)
+          return acc
+        },
+        {}
+      )
+    }
+
     const allTransactions: AllTransactions = {
-      unsigned: data.unsigned.map(sanitizeTransaction),
-      submitted: data.submitted.map(sanitizeTransaction).reverse(), // Reverse to show most recent transactions first
+      unsigned: sanitize(data.unsigned),
+      submitted: sanitize(data.submitted),
     }
     setTransactions(allTransactions)
   }
@@ -176,21 +193,56 @@ export function Transactions() {
             </Button>
           </form>
         </Form>
-        <TransactionCategoryHeader header="Unsigned" />
-        {transactions.unsigned.map((transaction, i) => (
-          <UnsignedTransactionComponent
-            transaction={transaction}
-            onSubmit={(transactionHash) => getTransactions()}
-            key={i.toString()}
-          />
-        ))}
-        <TransactionCategoryHeader header="Submitted" />
-        {transactions.submitted.map((transaction, i) => (
-          <SubmittedTransactionComponent
-            transaction={transaction}
-            key={i.toString()}
-          />
-        ))}
+        <Accordion type="single" collapsible>
+          <AccordionItem value="item-1">
+            <AccordionTrigger>
+              <TransactionCategoryHeader header="Unsigned" />
+            </AccordionTrigger>
+            <AccordionContent>
+              <div>
+                {Object.keys(transactions.unsigned).map((batchId, i) => (
+                  <TransactionBatch
+                    batchId={batchId}
+                    transactionBatch={transactions.unsigned[batchId]}
+                    transactionComponent={(transaction, i) => (
+                      <UnsignedTransactionComponent
+                        transaction={transaction}
+                        onSubmit={(transactionHash) => getTransactions()}
+                        key={i.toString()}
+                      />
+                    )}
+                    key={i.toString()}
+                  />
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+
+        <Accordion type="single" collapsible>
+          <AccordionItem value="item-1">
+            <AccordionTrigger>
+              <TransactionCategoryHeader header="Submitted" />
+            </AccordionTrigger>
+            <AccordionContent>
+              <div>
+                {Object.keys(transactions.submitted).map((batchId, i) => (
+                  <TransactionBatch
+                    batchId={batchId}
+                    transactionBatch={transactions.submitted[batchId]}
+                    transactionComponent={(transaction, i) => (
+                      <SubmittedTransactionComponent
+                        transaction={transaction}
+                        key={i.toString()}
+                      />
+                    )}
+                    key={i.toString()}
+                  />
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </div>
     </div>
   )

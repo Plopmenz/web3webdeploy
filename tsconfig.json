@@ -23,8 +23,7 @@
         "name": "next"
       }
     ],
-    "strictNullChecks": true,
-    "allowImportingTsExtensions": true
+    "strictNullChecks": true
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]

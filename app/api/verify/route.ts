@@ -1,6 +1,6 @@
-import { verify } from "@/lib/verifier.ts"
+import { verify } from "@/lib/verifier"
 
-import { VerifyRequest } from "../apiTypes.ts"
+import { VerifyRequest } from "../apiTypes"
 
 export async function POST(req: Request) {
   try {

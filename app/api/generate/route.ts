@@ -1,6 +1,6 @@
-import { generate } from "@/lib/deployer.ts"
+import { generate } from "@/lib/deployer"
 
-import { GenerateRequest } from "../apiTypes.ts"
+import { GenerateRequest } from "../apiTypes"
 
 export async function POST(req: Request) {
   try {
