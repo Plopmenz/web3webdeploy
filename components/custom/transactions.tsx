@@ -193,52 +193,56 @@ export function Transactions() {
             </Button>
           </form>
         </Form>
-        <Accordion type="single" collapsible>
-          <AccordionItem value="item-1">
+        <Accordion type="multiple">
+          <AccordionItem value="unsigned" className="pt-5">
             <AccordionTrigger>
               <TransactionCategoryHeader header="Unsigned" />
             </AccordionTrigger>
             <AccordionContent>
               <div>
-                {Object.keys(transactions.unsigned).map((batchId, i) => (
-                  <TransactionBatch
-                    batchId={batchId}
-                    transactionBatch={transactions.unsigned[batchId]}
-                    transactionComponent={(transaction, i) => (
-                      <UnsignedTransactionComponent
-                        transaction={transaction}
-                        onSubmit={(transactionHash) => getTransactions()}
-                        key={i.toString()}
-                      />
-                    )}
-                    key={i.toString()}
-                  />
-                ))}
+                {Object.keys(transactions.unsigned)
+                  // Reverse for most recent ones first
+                  .reverse()
+                  .map((batchId, i) => (
+                    <TransactionBatch
+                      batchId={batchId}
+                      transactionBatch={transactions.unsigned[batchId]}
+                      transactionComponent={(transaction, i) => (
+                        <UnsignedTransactionComponent
+                          transaction={transaction}
+                          onSubmit={(transactionHash) => getTransactions()}
+                          key={i.toString()}
+                        />
+                      )}
+                      key={i.toString()}
+                    />
+                  ))}
               </div>
             </AccordionContent>
           </AccordionItem>
-        </Accordion>
 
-        <Accordion type="single" collapsible>
-          <AccordionItem value="item-1">
+          <AccordionItem value="submitted" className="pt-5">
             <AccordionTrigger>
               <TransactionCategoryHeader header="Submitted" />
             </AccordionTrigger>
             <AccordionContent>
               <div>
-                {Object.keys(transactions.submitted).map((batchId, i) => (
-                  <TransactionBatch
-                    batchId={batchId}
-                    transactionBatch={transactions.submitted[batchId]}
-                    transactionComponent={(transaction, i) => (
-                      <SubmittedTransactionComponent
-                        transaction={transaction}
-                        key={i.toString()}
-                      />
-                    )}
-                    key={i.toString()}
-                  />
-                ))}
+                {Object.keys(transactions.submitted)
+                  // Reverse for most recent ones first
+                  .reverse()
+                  .map((batchId, i) => (
+                    <TransactionBatch
+                      batchId={batchId}
+                      transactionBatch={transactions.submitted[batchId]}
+                      transactionComponent={(transaction, i) => (
+                        <SubmittedTransactionComponent
+                          transaction={transaction}
+                          key={i.toString()}
+                        />
+                      )}
+                      key={i.toString()}
+                    />
+                  ))}
               </div>
             </AccordionContent>
           </AccordionItem>

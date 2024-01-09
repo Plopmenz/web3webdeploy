@@ -27,7 +27,9 @@ export function TransactionBatch<T extends UnsignedTransactionBase>({
           <h1 className="font-bold text-xl">{batchId}</h1>
         </AccordionTrigger>
         <AccordionContent>
-          <div>{transactionBatch.map(transactionComponent)}</div>
+          <div className="grid grid-cols-1 gap-3">
+            {transactionBatch.map(transactionComponent)}
+          </div>
         </AccordionContent>
       </AccordionItem>
     </Accordion>

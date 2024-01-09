@@ -1,10 +1,9 @@
 import { exec } from "child_process"
 import { mkdir, readdir, readFile, rm, rmdir, writeFile } from "fs/promises"
-import module, { Module } from "module"
+import { Module } from "module"
 import path from "path"
 import { promisify } from "util"
 import esbuild from "esbuild"
-import ts from "typescript"
 import {
   createPublicClient,
   encodeDeployData,
@@ -34,7 +33,7 @@ import { getChain } from "./chains"
 import { PromiseObject } from "./promiseHelper"
 import { stringToTransaction, transactionToString } from "./transactionString"
 
-const deleteUnfishedDeploymentOnGenerate = true
+const deleteUnfishedDeploymentOnGenerate = false
 const defaultCreate2 = false
 const defaultSalt = padBytes(toBytes("web3webdeploy"), { size: 32 })
 // From https://book.getfoundry.sh/tutorials/create2-tutorial (using https://github.com/Arachnid/deterministic-deployment-proxy)
@@ -42,6 +41,7 @@ const deterministicDeployer = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
 
 const baseDir = ".." as const
 const deployDir = `${baseDir}/deploy` as const
+const deployFile = `${deployDir}/deploy.ts` as const
 const deploymentsDir = `${baseDir}/deployed` as const
 const unsignedTransactionsDir = `${deploymentsDir}/unsigned` as const
 const submittedTransactionsDir = `${deploymentsDir}/submitted` as const
@@ -203,39 +203,36 @@ export async function generate(settings: GenerateSettings) {
     }
   }
 
-  // execute deploy functions
-  const deployScripts = await readdir(deployDir)
-  for (let i = 0; i < deployScripts.length; i++) {
-    const filePath = `${deployDir}/${deployScripts[i]}`
-    const fileContent = await readFile(filePath, {
-      encoding: "utf-8",
-    })
+  // execute deploy script
+  const fileContent = await readFile(deployFile, {
+    encoding: "utf-8",
+  })
 
-    // Transform ts file to a single js file (without imports)
-    const bundle = await esbuild.build({
-      bundle: true,
-      write: false,
-      platform: "node",
-      stdin: {
-        contents: fileContent,
-        loader: "ts",
-        resolveDir: path.resolve(deployDir),
-        sourcefile: path.resolve(filePath),
-      },
-    })
-    const jsContent = bundle.outputFiles[0].text
+  // Transform ts file to a single js file (without imports)
+  const bundle = await esbuild.build({
+    bundle: true,
+    write: false,
+    platform: "node",
+    stdin: {
+      contents: fileContent,
+      loader: "ts",
+      resolveDir: path.resolve(deployDir),
+      sourcefile: path.resolve(deployFile),
+    },
+  })
+  const jsContent = bundle.outputFiles[0].text
 
-    var m = new Module(filePath) as any // Type signatures do not expose _compile
-    m._compile(jsContent, "")
-    const deployScript: DeployScript = m.exports
+  var m = new Module(deployFile) as any // Type signatures do not expose _compile
+  m._compile(jsContent, "")
+  const deployScript: DeployScript = m.exports
 
-    if (!deployScript?.deploy) {
-      console.warn(
-        `Script ${filePath} does not export a correct deploy function.`
-      )
-      continue
-    }
-
+  if (!deployScript?.deploy) {
+    console.warn(
+      `Script ${path.resolve(
+        deployFile
+      )} does not export a correct deploy function. Deployment skipped.`
+    )
+  } else {
     await deployScript.deploy(deployer)
   }
 }
