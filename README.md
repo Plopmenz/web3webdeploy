@@ -1,21 +1,30 @@
-# next-template
+# web3webdeploy
 
-A Next.js 13 template for building apps with Radix UI and Tailwind CSS.
+A browser interface for deploying smart contracts.
+
+## Requirements
+
+- Nodejs
+- Make
+
+## Instalation
+
+```bash
+git submodule add https://github.com/Plopmenz/web3webdeploy
+```
 
 ## Usage
 
 ```bash
-npx create-next-app -e https://github.com/shadcn/next-template
+make --directory=./web3webdeploy deploy
 ```
 
 ## Features
 
-- Next.js 13 App Directory
-- Radix UI Primitives
-- Tailwind CSS
-- Icons from [Lucide](https://lucide.dev)
-- Dark mode with `next-themes`
-- Tailwind CSS class sorting, merging and linting.
+- Deployment using walletconnect, browser (injected) wallet or coinbase wallet
+- Read forge artifacts
+- Create2 deployments
+- Verification on Etherscan (equivalent), Sourcify and Tenderly
 
 ## License
 
