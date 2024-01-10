@@ -30,25 +30,13 @@ import {
   UnsignedTransactionBase,
 } from "../types"
 import { getChain } from "./chains"
+import { getConfig } from "./config"
 import { PromiseObject } from "./promiseHelper"
 import { stringToTransaction, transactionToString } from "./transactionString"
 
-const deleteUnfishedDeploymentOnGenerate = false
-const defaultCreate2 = false
-const defaultSalt = padBytes(toBytes("web3webdeploy"), { size: 32 })
-// From https://book.getfoundry.sh/tutorials/create2-tutorial (using https://github.com/Arachnid/deterministic-deployment-proxy)
-const deterministicDeployer = "0x4e59b44847b379578588920ca78fbf26c0b4956c"
-
-const baseDir = ".." as const
-const deployDir = `${baseDir}/deploy` as const
-const deployFile = `${deployDir}/deploy.ts` as const
-const deploymentsDir = `${baseDir}/deployed` as const
-const unsignedTransactionsDir = `${deploymentsDir}/unsigned` as const
-const submittedTransactionsDir = `${deploymentsDir}/submitted` as const
-const artifactsDir = `${baseDir}/out` as const
-
 export async function generate(settings: GenerateSettings) {
-  await promisify(exec)("forge compile", { cwd: baseDir })
+  const config = await getConfig()
+  await promisify(exec)("forge compile", { cwd: config.projectRoot })
 
   const chainVariables: {
     [chainId: string]: {
@@ -97,17 +85,17 @@ export async function generate(settings: GenerateSettings) {
       const priorityFee = deployInfo.priorityFee ?? settings.defaultPriorityFee
       const nonce = await getNonce(from, chainId)
 
-      const create2 = deployInfo.create2 ?? defaultCreate2
+      const create2 = deployInfo.create2 ?? config.defaultCreate2
       const salt = deployInfo.salt
         ? typeof deployInfo.salt === "string"
           ? padBytes(toBytes(deployInfo.salt), { size: 32 })
           : deployInfo.salt
-        : defaultSalt
+        : config.defaultSalt
 
       const artifact = await getArtifact(deployInfo.contract)
       const predictedAddress = create2
         ? getCreate2Address({
-            from: deterministicDeployer,
+            from: config.create2Deployer,
             salt: salt,
             bytecode: artifact.bytecode,
           })
@@ -117,7 +105,7 @@ export async function generate(settings: GenerateSettings) {
           })
 
       const baseTransaction = {
-        to: create2 ? deterministicDeployer : undefined,
+        to: create2 ? config.create2Deployer : undefined,
         value: BigInt(0),
         data: create2
           ? ((fromBytes<"hex">(salt, { to: "hex" }) +
@@ -159,9 +147,12 @@ export async function generate(settings: GenerateSettings) {
         console.warn(`Could not estimate gas for ${deployTransaction.id}`)
       }
 
-      await mkdir(`${unsignedTransactionsDir}/${batchId}`, { recursive: true })
+      const batchDir = path.join(config.unsignedTransactionsDir, batchId)
+      await mkdir(batchDir, {
+        recursive: true,
+      })
       await writeFile(
-        `${unsignedTransactionsDir}/${batchId}/${deployTransaction.id}.json`,
+        path.join(batchDir, `${deployTransaction.id}.json`),
         transactionToString(deployTransaction)
       )
 
@@ -170,14 +161,14 @@ export async function generate(settings: GenerateSettings) {
     },
   }
 
-  if (deleteUnfishedDeploymentOnGenerate) {
+  if (config.deleteUnfishedDeploymentOnGenerate) {
     // Check if all directories are empty (or non-existent)
     const subDirectories = ["unsigned", "queued"] // Except submitted
     const allDirsEmpty = !(
       await Promise.all(
         subDirectories.map(
           (d) =>
-            readdir(`${deploymentsDir}/${d}`)
+            readdir(path.join(config.deploymentsDir, d))
               .then((files) => files.length == 0)
               .catch((error) => true) // Assume expection means non-existent
         )
@@ -189,22 +180,24 @@ export async function generate(settings: GenerateSettings) {
       // Clear all leftover transactions
       await Promise.all(
         subDirectories.map((d) =>
-          rm(`${deploymentsDir}/${d}`, { force: true, recursive: true }).catch(
-            (error: any) => {
-              throw new Error(
-                `Could not clean up directory ${deploymentsDir}/${d}: ${
-                  error?.message ?? JSON.stringify(error)
-                }`
-              )
-            }
-          )
+          rm(path.join(config.deploymentsDir, d), {
+            force: true,
+            recursive: true,
+          }).catch((error: any) => {
+            throw new Error(
+              `Could not clean up directory ${path.join(
+                config.deploymentsDir,
+                d
+              )}: ${error?.message ?? JSON.stringify(error)}`
+            )
+          })
         )
       )
     }
   }
 
   // execute deploy script
-  const fileContent = await readFile(deployFile, {
+  const fileContent = await readFile(config.deployFile, {
     encoding: "utf-8",
   })
 
@@ -216,20 +209,20 @@ export async function generate(settings: GenerateSettings) {
     stdin: {
       contents: fileContent,
       loader: "ts",
-      resolveDir: path.resolve(deployDir),
-      sourcefile: path.resolve(deployFile),
+      resolveDir: path.resolve(config.deployDir),
+      sourcefile: path.resolve(config.deployFile),
     },
   })
   const jsContent = bundle.outputFiles[0].text
 
-  var m = new Module(deployFile) as any // Type signatures do not expose _compile
+  var m = new Module(config.deployFile) as any // Type signatures do not expose _compile
   m._compile(jsContent, "")
   const deployScript: DeployScript = m.exports
 
   if (!deployScript?.deploy) {
     console.warn(
       `Script ${path.resolve(
-        deployFile
+        config.deployFile
       )} does not export a correct deploy function. Deployment skipped.`
     )
   } else {
@@ -246,12 +239,12 @@ async function getTransactions<T extends UnsignedTransactionBase>(
   } = {}
   for (let i = 0; i < transactionBatches.length; i++) {
     transactions[transactionBatches[i]] = readdir(
-      `${transactionsDir}/${transactionBatches[i]}`
+      path.join(transactionsDir, transactionBatches[i])
     ).then((transactionFiles) =>
       Promise.all(
         transactionFiles.map(async (transactionFile) => {
           const transactionContent = await readFile(
-            `${transactionsDir}/${transactionBatches[i]}/${transactionFile}`,
+            path.join(transactionsDir, transactionBatches[i], transactionFile),
             { encoding: "utf-8" }
           )
 
@@ -273,9 +266,10 @@ async function getTransactions<T extends UnsignedTransactionBase>(
 export async function getUnsignedTransactions(): Promise<{
   [batchId: string]: UnsignedTransactionBase[]
 }> {
+  const config = await getConfig()
   try {
     return await getTransactions<UnsignedTransactionBase>(
-      unsignedTransactionsDir
+      config.unsignedTransactionsDir
     )
   } catch (error: any) {
     console.warn(
@@ -290,8 +284,11 @@ export async function getUnsignedTransactions(): Promise<{
 export async function getSubmittedTransactions(): Promise<{
   [batchId: string]: SubmittedTransaction[]
 }> {
+  const config = await getConfig()
   try {
-    return await getTransactions<SubmittedTransaction>(submittedTransactionsDir)
+    return await getTransactions<SubmittedTransaction>(
+      config.submittedTransactionsDir
+    )
   } catch (error: any) {
     console.warn(
       `Could not load submitted transactions: ${
@@ -303,14 +300,19 @@ export async function getSubmittedTransactions(): Promise<{
 }
 
 async function getArtifact(contractName: string): Promise<Artifact> {
-  const path = `${artifactsDir}/${contractName}.sol/${contractName}.json`
+  const config = await getConfig()
+  const filePath = path.join(
+    config.artifactsDir,
+    `${contractName}.sol`,
+    `${contractName}.json`
+  )
   try {
-    const forgeOutput = await readFile(path, { encoding: "utf-8" })
+    const forgeOutput = await readFile(filePath, { encoding: "utf-8" })
     const forgeArtifact = JSON.parse(forgeOutput) as ForgeArtifact
     return forgeToArtifact(forgeArtifact)
   } catch (error: any) {
     throw new Error(
-      `Could not get artifact for ${contractName} at ${path}: ${
+      `Could not get artifact for ${contractName} at ${filePath}: ${
         error?.message ?? JSON.stringify(error)
       }`
     )
@@ -320,6 +322,7 @@ async function getArtifact(contractName: string): Promise<Artifact> {
 async function forgeToArtifact(
   forgeArtifact: ForgeArtifact
 ): Promise<Artifact> {
+  const config = await getConfig()
   const abi = forgeArtifact.abi
   const bytecode = forgeArtifact.bytecode.object
   const compiler = {
@@ -342,7 +345,10 @@ async function forgeToArtifact(
   }
   await Promise.all(
     Object.keys(jsonDescription.sources).map(async (file) => {
-      const sourceCode = await readFile(`../${file}`, "utf-8")
+      const sourceCode = await readFile(
+        path.join(config.projectRoot, file),
+        "utf-8"
+      )
       jsonDescription.sources[file] = {
         content: sourceCode,
       }
@@ -364,7 +370,9 @@ export async function unsignedToSubmitted(
   transactionId: string,
   transactionHash: Bytes
 ) {
-  const oldPath = `${unsignedTransactionsDir}/${batchId}/${transactionId}.json`
+  const config = await getConfig()
+  const oldBatchDir = path.join(config.unsignedTransactionsDir, batchId)
+  const oldPath = path.join(oldBatchDir, `${transactionId}.json`)
   try {
     const oldData = await readFile(oldPath, { encoding: "utf-8" })
     const newData: SubmittedTransaction = {
@@ -374,9 +382,12 @@ export async function unsignedToSubmitted(
         date: new Date(),
       },
     }
-    await mkdir(`${submittedTransactionsDir}/${batchId}`, { recursive: true })
+    const newBatchDir = path.join(config.submittedTransactionsDir, batchId)
+    await mkdir(newBatchDir, {
+      recursive: true,
+    })
     await writeFile(
-      `${submittedTransactionsDir}/${batchId}/${transactionId}.json`,
+      path.join(newBatchDir, `${transactionId}.json`),
       transactionToString(newData)
     )
     await rm(oldPath)
@@ -388,15 +399,14 @@ export async function unsignedToSubmitted(
     )
   }
 
-  const batchDir = `${unsignedTransactionsDir}/${batchId}`
   try {
-    const files = await readdir(batchDir)
+    const files = await readdir(oldBatchDir)
     if (files.length === 0) {
-      await rmdir(batchDir)
+      await rmdir(oldBatchDir)
     }
   } catch (error: any) {
     throw new Error(
-      `Could not remove empty batch directory at ${batchDir}: ${
+      `Could not remove empty batch directory at ${oldBatchDir}: ${
         error?.message ?? JSON.stringify(error)
       }`
     )
