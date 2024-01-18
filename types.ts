@@ -138,6 +138,8 @@ export interface DeployInfo {
 
 export interface Deployer {
   deploy: (deployInfo: DeployInfo) => Promise<Address>
+  startContext: (context: string) => void
+  finishContext: () => void
 }
 
 export interface DeployScript {

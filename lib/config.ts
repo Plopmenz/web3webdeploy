@@ -1,4 +1,4 @@
-import { readFile } from "fs/promises"
+import { readdir, readFile } from "fs/promises"
 import path from "path"
 import { Address } from "@/types"
 import { padBytes, toBytes } from "viem"
@@ -22,17 +22,43 @@ type ConfigFile = Omit<Config, "defaultSalt"> & {
 }
 
 // Restart to update any changes made
-let configCache: Config | undefined
+const configCache: { [startingPath: string]: Config } = {}
+const configFileName = "web3webdeploy.config.json"
 
-export async function getConfig(): Promise<Config> {
-  if (!configCache) {
+export async function getConfig(startingPath?: string): Promise<Config> {
+  let configPath = startingPath ?? path.resolve("..")
+  if (!Object.hasOwn(configCache, configPath)) {
+    try {
+      while (
+        !(await readdir(configPath).then((files) =>
+          files
+            .map((file) => path.basename(file) === configFileName)
+            .includes(true)
+        ))
+      ) {
+        // Keep going up in directories until one is found that contains a config file
+        configPath = path.dirname(configPath)
+      }
+    } catch (error) {
+      console.log(
+        `Error finding config file from ${startingPath ?? path.resolve(".")}`,
+        error
+      )
+    }
+
     const configFile = JSON.parse(
       await readFile(
-        path.resolve(path.join("..", "web3webdeploy.config.json")),
+        path.join(configPath, "web3webdeploy.config.json"),
         "utf-8"
       ).catch((error) => {
-        console.log(error)
-        return "{}"
+        console.log(
+          `Error reading config file at ${path.join(
+            configPath,
+            "web3webdeploy.config.json"
+          )}`,
+          error
+        )
+        return JSON.stringify({ projectRoot: path.resolve("..") })
       })
     ) as ConfigFile
 
@@ -41,7 +67,7 @@ export async function getConfig(): Promise<Config> {
     configFile.defaultSalt ??= "web3webdeploy"
     configFile.create2Deployer ??= "0x4e59b44847b379578588920ca78fbf26c0b4956c" // From https://book.getfoundry.sh/tutorials/create2-tutorial (using https://github.com/Arachnid/deterministic-deployment-proxy)
 
-    configFile.projectRoot ??= path.resolve("..")
+    configFile.projectRoot ??= configPath
     configFile.deployDir ??= path.join(configFile.projectRoot, "deploy")
     configFile.deployFile ??= path.join(configFile.deployDir, "deploy.ts")
     configFile.deploymentsDir ??= path.join(configFile.projectRoot, "deployed")
@@ -55,11 +81,11 @@ export async function getConfig(): Promise<Config> {
     )
     configFile.artifactsDir ??= path.join(configFile.projectRoot, "out")
 
-    configCache = {
+    configCache[configPath] = {
       ...configFile,
       defaultSalt: padBytes(toBytes(configFile.defaultSalt), { size: 32 }),
     }
   }
 
-  return configCache
+  return configCache[configPath]
 }

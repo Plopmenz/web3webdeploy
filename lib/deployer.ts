@@ -30,13 +30,16 @@ import {
   UnsignedTransactionBase,
 } from "../types"
 import { getChain } from "./chains"
-import { getConfig } from "./config"
+import { Config, getConfig } from "./config"
 import { PromiseObject } from "./promiseHelper"
 import { stringToTransaction, transactionToString } from "./transactionString"
 
 export async function generate(settings: GenerateSettings) {
   const config = await getConfig()
-  await promisify(exec)("forge compile", { cwd: config.projectRoot })
+  const compiledProjects: string[] = []
+  const executionContext: string[] = []
+  const getCurrentContext = () =>
+    executionContext.at(-1) ?? path.resolve(config.projectRoot)
 
   const chainVariables: {
     [chainId: string]: {
@@ -92,7 +95,11 @@ export async function generate(settings: GenerateSettings) {
           : deployInfo.salt
         : config.defaultSalt
 
-      const artifact = await getArtifact(deployInfo.contract)
+      const artifact = await getArtifactAndCompile(
+        deployInfo.contract,
+        getCurrentContext(),
+        compiledProjects
+      )
       const predictedAddress = create2
         ? getCreate2Address({
             from: config.create2Deployer,
@@ -158,6 +165,12 @@ export async function generate(settings: GenerateSettings) {
 
       chainVariables[chainId.toString()].nonce[from]++
       return predictedAddress
+    },
+    startContext: (context: string) => {
+      executionContext.push(path.join(getCurrentContext(), context))
+    },
+    finishContext: () => {
+      executionContext.pop()
     },
   }
 
@@ -299,8 +312,24 @@ export async function getSubmittedTransactions(): Promise<{
   }
 }
 
-async function getArtifact(contractName: string): Promise<Artifact> {
-  const config = await getConfig()
+async function getArtifactAndCompile(
+  contractName: string,
+  fromPath: string,
+  compiledProjects: string[]
+): Promise<Artifact> {
+  const config = await getConfig(fromPath)
+  if (!compiledProjects.includes(config.projectRoot)) {
+    await promisify(exec)("forge compile", { cwd: config.projectRoot })
+    compiledProjects.push(config.projectRoot)
+  }
+  return getArtifact(contractName, config)
+}
+
+async function getArtifact(
+  contractName: string,
+  withConfig?: Config
+): Promise<Artifact> {
+  const config = withConfig ?? (await getConfig())
   const filePath = path.join(
     config.artifactsDir,
     `${contractName}.sol`,
@@ -309,7 +338,7 @@ async function getArtifact(contractName: string): Promise<Artifact> {
   try {
     const forgeOutput = await readFile(filePath, { encoding: "utf-8" })
     const forgeArtifact = JSON.parse(forgeOutput) as ForgeArtifact
-    return forgeToArtifact(forgeArtifact)
+    return forgeToArtifact(forgeArtifact, config)
   } catch (error: any) {
     throw new Error(
       `Could not get artifact for ${contractName} at ${filePath}: ${
@@ -320,9 +349,10 @@ async function getArtifact(contractName: string): Promise<Artifact> {
 }
 
 async function forgeToArtifact(
-  forgeArtifact: ForgeArtifact
+  forgeArtifact: ForgeArtifact,
+  withConfig?: Config
 ): Promise<Artifact> {
-  const config = await getConfig()
+  const config = withConfig ?? (await getConfig())
   const abi = forgeArtifact.abi
   const bytecode = forgeArtifact.bytecode.object
   const compiler = {
