@@ -92,6 +92,7 @@ export interface UnsignedTransactionBase {
   gas: bigint
   from: Address
   transactionSettings: TransactionSettings
+  source: string
 }
 
 export type UnsignedFunctionTransaction = UnsignedTransactionBase & {
@@ -109,12 +110,7 @@ export type UnsignedDeploymentTransaction = UnsignedTransactionBase & {
 }
 
 export type QueuedTransaction = UnsignedTransactionBase & {
-  // Is this allowed with wallet connect? Or would it submit right away?
-  signature: {
-    v: 0 | 1
-    r: Bytes
-    s: Bytes
-  }
+  signedTransactionRaw: Bytes
 }
 
 export type SubmittedTransaction = UnsignedTransactionBase & {
@@ -127,6 +123,7 @@ export type SubmittedTransaction = UnsignedTransactionBase & {
 export interface DeployInfo {
   contract: string
   args?: any[]
+  id?: string
   create2?: boolean
   salt?: string | Uint8Array
   from?: Address
@@ -134,10 +131,26 @@ export interface DeployInfo {
   nonce?: bigint
   baseFee?: bigint
   priorityFee?: bigint
+  value?: bigint
+}
+
+export interface ExecuteInfo {
+  abi: AbiItem[] | string // Can also use contract name
+  to: Address
+  function: string
+  args?: any[]
+  id?: string
+  from?: Address
+  chainId?: bigint
+  nonce?: bigint
+  baseFee?: bigint
+  priorityFee?: bigint
+  value?: bigint
 }
 
 export interface Deployer {
   deploy: (deployInfo: DeployInfo) => Promise<Address>
+  execute: (executeInfo: ExecuteInfo) => Promise<void>
   startContext: (context: string) => void
   finishContext: () => void
 }

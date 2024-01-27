@@ -140,6 +140,15 @@ export function SubmittedTransactionComponent({
         Submitted: {transaction.submitted.date.toLocaleDateString()} at{" "}
         {transaction.submitted.date.toLocaleTimeString()}
       </li>
+      {transaction.type === "deployment" && (
+        <li>
+          Address:{" "}
+          {
+            (transaction as any as UnsignedDeploymentTransaction)
+              .deploymentAddress
+          }
+        </li>
+      )}
       <div className="grid grid-cols-2 items-center">
         <li>
           Status: {isLoading ? "Waiting for confirmation..." : "Confirmed!"}
@@ -153,9 +162,9 @@ export function SubmittedTransactionComponent({
             <Button className="w-full">View on {explorer.name}</Button>
           </Link>
         )}
-        <div>{isError && <h2>Error!! {error?.message}</h2>}</div>
+        {isError && <h2>Error!! {error?.message}</h2>}
       </div>
-      {transaction.type === "deployment" && (
+      {transaction.type === "deployment" && !isLoading && !isError && (
         <div className="grid grid-cols-1 gap-2 items-center">
           <VerifyButton
             serviceName={verificationExplorer?.name}

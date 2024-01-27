@@ -1,4 +1,4 @@
-import { exec } from "child_process"
+import { ChildProcess, exec, spawn } from "child_process"
 import { mkdir, readdir, readFile, rm, rmdir, writeFile } from "fs/promises"
 import { Module } from "module"
 import path from "path"
@@ -6,13 +6,16 @@ import { promisify } from "util"
 import esbuild from "esbuild"
 import {
   createPublicClient,
+  createTestClient,
   encodeDeployData,
+  encodeFunctionData,
   fromBytes,
   getCreate2Address,
   getCreateAddress,
   http,
   padBytes,
   PublicClient,
+  TestClient,
   toBytes,
 } from "viem"
 
@@ -22,11 +25,13 @@ import {
   Bytes,
   DeployInfo,
   DeployScript,
+  ExecuteInfo,
   ForgeArtifact,
   GenerateSettings,
   JsonDescription,
   SubmittedTransaction,
   UnsignedDeploymentTransaction,
+  UnsignedFunctionTransaction,
   UnsignedTransactionBase,
 } from "../types"
 import { getChain } from "./chains"
@@ -41,9 +46,12 @@ export async function generate(settings: GenerateSettings) {
   const getCurrentContext = () =>
     executionContext.at(-1) ?? path.resolve(config.projectRoot)
 
+  let localForkPort = 18078
   const chainVariables: {
     [chainId: string]: {
+      localFork: ChildProcess
       publicClient: PublicClient
+      testClient: TestClient
       nonce: { [address: Address]: bigint }
     }
   } = {}
@@ -52,6 +60,7 @@ export async function generate(settings: GenerateSettings) {
     const variables = chainVariables[chainId.toString()]
 
     if (!Object.hasOwn(variables.nonce, address)) {
+      await variables.testClient.impersonateAccount({ address: address })
       variables.nonce[address] = BigInt(
         await variables.publicClient.getTransactionCount({ address: address })
       )
@@ -71,22 +80,93 @@ export async function generate(settings: GenerateSettings) {
   const generationSS = generationStart.getSeconds().toString().padStart(2, "0")
   const batchId = `${generationYYYY}${generationMM}${generationDD}_${generationHH}${generationmm}${generationSS}`
 
+  const getTransactionVariables = async (info: DeployInfo | ExecuteInfo) => {
+    const chainId = info.chainId ?? settings.defaultChainId
+    if (!Object.hasOwn(chainVariables, chainId.toString())) {
+      const chain = getChain(chainId)
+      const port = localForkPort++
+      const anvilInstance = spawn("anvil", [
+        "--port",
+        port.toString(),
+        "--fork-url",
+        chain.rpcUrls.default.http[0],
+      ])
+      chainVariables[chainId.toString()] = {
+        localFork: anvilInstance,
+        publicClient: createPublicClient({
+          chain: chain,
+          transport: http(`http://localhost:${port}`),
+        }) as PublicClient,
+        testClient: createTestClient({
+          mode: "anvil",
+          chain: chain,
+          transport: http(`http://localhost:${port}`),
+        }),
+        nonce: {},
+      }
+    }
+    const from = info.from ?? settings.defaultFrom
+    const baseFee = info.baseFee ?? settings.defaultBaseFee
+    const priorityFee = info.priorityFee ?? settings.defaultPriorityFee
+    const nonce = await getNonce(from, chainId)
+    return { chainId, from, baseFee, priorityFee, nonce }
+  }
+
+  const saveTransaction = async (
+    transaction: UnsignedDeploymentTransaction | UnsignedFunctionTransaction,
+    batchId: string
+  ) => {
+    const batchDir = path.join(config.unsignedTransactionsDir, batchId)
+    await mkdir(batchDir, {
+      recursive: true,
+    })
+    await writeFile(
+      path.join(batchDir, `${transaction.id}.json`),
+      transactionToString(transaction)
+    )
+  }
+
+  const estimateGas = async (
+    from: Address,
+    baseTransaction: { to?: Address; value: bigint; data: Bytes },
+    chainId: bigint,
+    transactionId: string
+  ) => {
+    return await chainVariables[chainId.toString()].publicClient
+      .estimateGas({
+        account: from,
+        ...baseTransaction,
+      })
+      .catch((error) => {
+        throw new Error(
+          `Error in test deploy for transaction ${transactionId}: ${JSON.stringify(
+            error
+          )}`
+        )
+      })
+  }
+
+  const locallyExecuteTransaction = async (
+    transaction: UnsignedDeploymentTransaction | UnsignedFunctionTransaction
+  ) => {
+    await chainVariables[
+      transaction.transactionSettings.chainId.toString()
+    ].testClient.sendUnsignedTransaction({
+      from: transaction.from,
+      to: transaction.to,
+      value: transaction.value,
+      data: transaction.data,
+      gas: transaction.gas,
+      nonce: Number(transaction.transactionSettings.nonce),
+    })
+  }
+
   const deployer = {
     deploy: async (deployInfo: DeployInfo) => {
-      const chainId = deployInfo.chainId ?? settings.defaultChainId
-      if (!Object.hasOwn(chainVariables, chainId.toString())) {
-        chainVariables[chainId.toString()] = {
-          publicClient: createPublicClient({
-            chain: getChain(chainId),
-            transport: http(),
-          }) as PublicClient,
-          nonce: {},
-        }
-      }
-      const from = deployInfo.from ?? settings.defaultFrom
-      const baseFee = deployInfo.baseFee ?? settings.defaultBaseFee
-      const priorityFee = deployInfo.priorityFee ?? settings.defaultPriorityFee
-      const nonce = await getNonce(from, chainId)
+      const { chainId, from, baseFee, priorityFee, nonce } =
+        await getTransactionVariables(deployInfo)
+      const transactionId =
+        deployInfo.id ?? `${chainId}_${nonce}_${deployInfo.contract}`
 
       const create2 = deployInfo.create2 ?? config.defaultCreate2
       const salt = deployInfo.salt
@@ -113,7 +193,7 @@ export async function generate(settings: GenerateSettings) {
 
       const baseTransaction = {
         to: create2 ? config.create2Deployer : undefined,
-        value: BigInt(0),
+        value: deployInfo.value ?? BigInt(0),
         data: create2
           ? ((fromBytes<"hex">(salt, { to: "hex" }) +
               encodeDeployData({
@@ -129,17 +209,12 @@ export async function generate(settings: GenerateSettings) {
       } as const
       const deployTransaction: UnsignedDeploymentTransaction = {
         type: "deployment",
-        id: `${chainId}_${nonce}_${deployInfo.contract}`,
+        id: transactionId,
         batch: batchId,
         deploymentAddress: predictedAddress,
         constructorArgs: deployInfo.args ?? [],
         ...baseTransaction,
-        gas: await chainVariables[chainId.toString()].publicClient
-          .estimateGas({
-            account: from,
-            ...baseTransaction,
-          })
-          .catch(() => BigInt(0)),
+        gas: await estimateGas(from, baseTransaction, chainId, transactionId),
         from: from,
         transactionSettings: {
           chainId: chainId,
@@ -147,24 +222,68 @@ export async function generate(settings: GenerateSettings) {
           baseFee: baseFee,
           priorityFee: priorityFee,
         },
-        salt: create2 ? Buffer.from(salt).toString() : undefined,
+        salt: create2
+          ? deployInfo.salt && typeof deployInfo.salt !== "string"
+            ? `0x${Buffer.from(salt).toString("hex")}`
+            : Buffer.from(salt).toString()
+          : undefined,
         artifact: artifact,
-      }
-      if (deployTransaction.gas === BigInt(0)) {
-        console.warn(`Could not estimate gas for ${deployTransaction.id}`)
+        source: getCurrentContext(),
       }
 
-      const batchDir = path.join(config.unsignedTransactionsDir, batchId)
-      await mkdir(batchDir, {
-        recursive: true,
-      })
-      await writeFile(
-        path.join(batchDir, `${deployTransaction.id}.json`),
-        transactionToString(deployTransaction)
-      )
+      await saveTransaction(deployTransaction, batchId)
+      await locallyExecuteTransaction(deployTransaction)
 
       chainVariables[chainId.toString()].nonce[from]++
       return predictedAddress
+    },
+    execute: async (executeInfo: ExecuteInfo) => {
+      const { chainId, from, baseFee, priorityFee, nonce } =
+        await getTransactionVariables(executeInfo)
+      const transactionId =
+        executeInfo.id ?? `${chainId}_${nonce}_${executeInfo.function}`
+
+      const abi =
+        typeof executeInfo.abi === "string"
+          ? (
+              await getArtifactAndCompile(
+                executeInfo.abi,
+                getCurrentContext(),
+                compiledProjects
+              )
+            ).abi
+          : executeInfo.abi
+      const baseTransaction = {
+        to: executeInfo.to,
+        value: executeInfo.value ?? BigInt(0),
+        data: encodeFunctionData({
+          abi: abi,
+          functionName: executeInfo.function,
+          args: executeInfo.args ?? [],
+        }),
+      } as const
+      const functionTransaction: UnsignedFunctionTransaction = {
+        type: "function",
+        id: transactionId,
+        batch: batchId,
+        functionName: executeInfo.function,
+        functionArgs: executeInfo.args ?? [],
+        ...baseTransaction,
+        gas: await estimateGas(from, baseTransaction, chainId, transactionId),
+        from: from,
+        transactionSettings: {
+          chainId: chainId,
+          nonce: nonce,
+          baseFee: baseFee,
+          priorityFee: priorityFee,
+        },
+        source: getCurrentContext(),
+      }
+
+      await saveTransaction(functionTransaction, batchId)
+      await locallyExecuteTransaction(functionTransaction)
+
+      chainVariables[chainId.toString()].nonce[from]++
     },
     startContext: (context: string) => {
       executionContext.push(path.join(getCurrentContext(), context))
@@ -241,6 +360,11 @@ export async function generate(settings: GenerateSettings) {
   } else {
     await deployScript.deploy(deployer)
   }
+
+  // Stop local chain processes
+  Object.values(chainVariables).forEach((chainInfo) =>
+    chainInfo.localFork.kill()
+  )
 }
 
 async function getTransactions<T extends UnsignedTransactionBase>(
@@ -253,25 +377,35 @@ async function getTransactions<T extends UnsignedTransactionBase>(
   for (let i = 0; i < transactionBatches.length; i++) {
     transactions[transactionBatches[i]] = readdir(
       path.join(transactionsDir, transactionBatches[i])
-    ).then((transactionFiles) =>
-      Promise.all(
-        transactionFiles.map(async (transactionFile) => {
-          const transactionContent = await readFile(
-            path.join(transactionsDir, transactionBatches[i], transactionFile),
-            { encoding: "utf-8" }
-          )
-
-          const transaction = stringToTransaction(transactionContent) as T
-          if (transactionFile !== `${transaction.id}.json`) {
-            // Will be an issue when trying to move the transaction file (such as unsigned -> submitted)
-            console.warn(
-              `Transaction file ${transactionFile} does not match it's id ${transaction.id}`
-            )
-          }
-          return transaction
-        })
-      )
     )
+      .then((transactionFiles) =>
+        Promise.all(
+          transactionFiles.map(async (transactionFile) => {
+            const transactionContent = await readFile(
+              path.join(
+                transactionsDir,
+                transactionBatches[i],
+                transactionFile
+              ),
+              { encoding: "utf-8" }
+            )
+
+            const transaction = stringToTransaction(transactionContent) as T
+            if (transactionFile !== `${transaction.id}.json`) {
+              // Will be an issue when trying to move the transaction file (such as unsigned -> submitted)
+              console.warn(
+                `Transaction file ${transactionFile} does not match it's id ${transaction.id}`
+              )
+            }
+            return transaction
+          })
+        )
+      )
+      .then((unsortedTransactions) =>
+        unsortedTransactions.sort((t1, t2) =>
+          Number(t1.transactionSettings.nonce - t2.transactionSettings.nonce)
+        )
+      )
   }
   return PromiseObject(transactions)
 }

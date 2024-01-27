@@ -110,6 +110,7 @@ export function UnsignedTransactionComponent({
           onClick={() => {
             execute().catch(console.error)
           }}
+          disabled={transaction.gas == BigInt(0)}
         >
           Send transaction
         </Button>
@@ -133,6 +134,7 @@ function DeploymentTransaction(transaction: UnsignedDeploymentTransaction) {
       <li>Predicted deployment address: {transaction.deploymentAddress}</li>
       {transaction.salt && <li>CREATE2 salt: {transaction.salt}</li>}
       <li>Transaction signer: {transaction.from}</li>
+      <li>Project: {transaction.source}</li>
     </div>
   )
 }
@@ -140,16 +142,21 @@ function DeploymentTransaction(transaction: UnsignedDeploymentTransaction) {
 function FunctionTransaction(transaction: UnsignedFunctionTransaction) {
   return (
     <div>
-      <li>from: {transaction.from}</li>
-      <li>to: {transaction.to}</li>
-      <li>value: {transaction.value.toString()}</li>
-      <li>data: {transaction.data}</li>
-      <li>chainId: {transaction.transactionSettings.chainId.toString()}</li>
-      <li>nonce: {transaction.transactionSettings.nonce.toString()}</li>
-      <li>baseFee: {transaction.transactionSettings.baseFee.toString()}</li>
-      <li>
-        priorityFee: {transaction.transactionSettings.priorityFee.toString()}
-      </li>
+      <li>Function: {transaction.functionName}</li>
+      {transaction.functionArgs.length > 0 && (
+        <li>
+          Constructor arguments:{" "}
+          {transaction.functionArgs
+            .map((x) => x.toString())
+            .reduce((prev, curr) => (prev ? `${prev}, ${curr}` : curr), "")}
+        </li>
+      )}
+      <li>To: {transaction.to}</li>
+      {transaction.value > BigInt(0) && (
+        <li>Value: {transaction.value.toString()}</li>
+      )}
+      <li>Transaction signer: {transaction.from}</li>
+      <li>Project: {transaction.source}</li>
     </div>
   )
 }
