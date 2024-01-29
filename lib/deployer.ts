@@ -91,16 +91,20 @@ export async function generate(settings: GenerateSettings) {
         "--fork-url",
         chain.rpcUrls.default.http[0],
       ])
+      await new Promise((resolve) => {
+        // Wait for anvil to be ready (output anything in the console)
+        anvilInstance.stdout.on("data", resolve)
+      })
       chainVariables[chainId.toString()] = {
         localFork: anvilInstance,
         publicClient: createPublicClient({
           chain: chain,
-          transport: http(`http://localhost:${port}`),
+          transport: http(`http://127.0.0.1:${port}`),
         }) as PublicClient,
         testClient: createTestClient({
           mode: "anvil",
           chain: chain,
-          transport: http(`http://localhost:${port}`),
+          transport: http(`http://127.0.0.1:${port}`),
         }),
         nonce: {},
       }
@@ -358,13 +362,15 @@ export async function generate(settings: GenerateSettings) {
       )} does not export a correct deploy function. Deployment skipped.`
     )
   } else {
-    await deployScript.deploy(deployer)
+    try {
+      await deployScript.deploy(deployer)
+    } finally {
+      // Stop local chain processes
+      Object.values(chainVariables).forEach((chainInfo) =>
+        chainInfo.localFork.kill()
+      )
+    }
   }
-
-  // Stop local chain processes
-  Object.values(chainVariables).forEach((chainInfo) =>
-    chainInfo.localFork.kill()
-  )
 }
 
 async function getTransactions<T extends UnsignedTransactionBase>(
