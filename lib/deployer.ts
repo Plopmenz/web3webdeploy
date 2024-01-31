@@ -85,16 +85,34 @@ export async function generate(settings: GenerateSettings) {
     if (!Object.hasOwn(chainVariables, chainId.toString())) {
       const chain = getChain(chainId)
       const port = localForkPort++
+      const forkRPC = chain.rpcUrls.default.http[0]
       const anvilInstance = spawn("anvil", [
         "--port",
         port.toString(),
         "--fork-url",
-        chain.rpcUrls.default.http[0],
+        forkRPC,
       ])
+
+      let anvilProcessClosed: number | null = 0
       await new Promise((resolve) => {
         // Wait for anvil to be ready (output anything in the console)
         anvilInstance.stdout.on("data", resolve)
+
+        // In case anvil for whatever reason does not manage to start
+        anvilInstance.on("close", (code, signal) => {
+          if (code !== 0) {
+            console.error(`Anvil instance killed with code ${code} (${signal})`)
+          }
+          anvilProcessClosed = code
+          resolve({})
+        })
       })
+      if (anvilProcessClosed !== 0) {
+        throw new Error(
+          `Local fork of ${forkRPC} (chain ${chainId}) failed to initialize.`
+        )
+      }
+
       chainVariables[chainId.toString()] = {
         localFork: anvilInstance,
         publicClient: createPublicClient({
