@@ -149,6 +149,7 @@ export interface ExecuteInfo {
 }
 
 export interface Deployer {
+  settings: GenerateSettings
   deploy: (deployInfo: DeployInfo) => Promise<Address>
   execute: (executeInfo: ExecuteInfo) => Promise<void>
   startContext: (context: string) => void

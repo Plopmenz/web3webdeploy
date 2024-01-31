@@ -184,6 +184,7 @@ export async function generate(settings: GenerateSettings) {
   }
 
   const deployer = {
+    settings: settings,
     deploy: async (deployInfo: DeployInfo) => {
       const { chainId, from, baseFee, priorityFee, nonce } =
         await getTransactionVariables(deployInfo)
