@@ -49,6 +49,7 @@ export async function verifyEtherscan({
           remappings:
             deploymentTransaction.artifact.jsonDescription.settings?.remappings,
           evmVersion: deploymentTransaction.artifact.jsonDescription.evmVersion,
+          viaIR: deploymentTransaction.artifact.jsonDescription.settings?.viaIR,
         },
       }),
       codeformat: "solidity-standard-json-input",

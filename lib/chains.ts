@@ -11,6 +11,21 @@ export function getChain(chainId: bigint) {
   const chainIdNumber = Number(chainId)
   for (const chain of chains) {
     if (chain.id === chainIdNumber) {
+      if (chain.id === 11155111) {
+        return {
+          ...chain,
+          rpcUrls: {
+            default: {
+              // Default sepolia rpc is very restrictive
+              http: ["https://rpc.ankr.com/eth_sepolia"],
+            },
+            public: {
+              http: ["https://rpc.ankr.com/eth_sepolia"],
+            },
+          },
+        } as const
+      }
+
       return chain
     }
   }

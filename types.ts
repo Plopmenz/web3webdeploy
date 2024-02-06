@@ -57,6 +57,7 @@ export interface JsonDescription {
   settings?: {
     remappings?: string[]
     optimizer?: { enabled?: boolean; runs?: number }
+    viaIR?: boolean
   }
   evmVersion?: string
   metadata: {

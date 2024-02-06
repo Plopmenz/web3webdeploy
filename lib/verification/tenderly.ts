@@ -37,8 +37,6 @@ export async function verifyTenderly({
         )[0] as any,
         sources: deploymentTransaction.artifact.jsonDescription.sources,
         settings: {
-          remappings:
-            deploymentTransaction.artifact.jsonDescription.settings?.remappings,
           optimizer: {
             enabled:
               deploymentTransaction.artifact.jsonDescription.settings?.optimizer
@@ -46,7 +44,10 @@ export async function verifyTenderly({
             runs: deploymentTransaction.artifact.jsonDescription.settings
               ?.optimizer?.runs,
           },
+          remappings:
+            deploymentTransaction.artifact.jsonDescription.settings?.remappings,
           evmVersion: deploymentTransaction.artifact.jsonDescription.evmVersion,
+          viaIR: deploymentTransaction.artifact.jsonDescription.settings?.viaIR,
         },
       },
     }
