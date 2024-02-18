@@ -35,6 +35,7 @@ export interface ForgeArtifact {
       compilationTarget: {
         [contractPath: string]: string // Contract name
       }
+      viaIR?: boolean
     }
     sources: {
       [file: string]: {

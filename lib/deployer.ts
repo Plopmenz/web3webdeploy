@@ -528,6 +528,7 @@ async function forgeToArtifact(
     settings: {
       optimizer: forgeArtifact.metadata.settings.optimizer,
       remappings: forgeArtifact.metadata.settings.remappings,
+      viaIR: forgeArtifact.metadata.settings.viaIR,
     },
     evmVersion: JSON.parse(forgeArtifact.rawMetadata).settings.evmVersion,
     metadata: { useLiteralContent: true },
