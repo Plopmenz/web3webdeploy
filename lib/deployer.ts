@@ -203,11 +203,16 @@ export async function generate(settings: GenerateSettings) {
         getCurrentContext(),
         compiledProjects
       )
+      const bytecode = encodeDeployData({
+        abi: artifact.abi,
+        bytecode: artifact.bytecode,
+        args: deployInfo.args,
+      })
       const predictedAddress = create2
         ? getCreate2Address({
             from: config.create2Deployer,
             salt: salt,
-            bytecode: artifact.bytecode,
+            bytecode: bytecode,
           })
         : getCreateAddress({
             from: from,
@@ -219,16 +224,8 @@ export async function generate(settings: GenerateSettings) {
         value: deployInfo.value ?? BigInt(0),
         data: create2
           ? ((fromBytes<"hex">(salt, { to: "hex" }) +
-              encodeDeployData({
-                abi: artifact.abi,
-                bytecode: artifact.bytecode,
-                args: deployInfo.args,
-              }).replace("0x", "")) as Bytes)
-          : encodeDeployData({
-              abi: artifact.abi,
-              bytecode: artifact.bytecode,
-              args: deployInfo.args,
-            }),
+              bytecode.replace("0x", "")) as Bytes)
+          : bytecode,
       } as const
       const deployTransaction: UnsignedDeploymentTransaction = {
         type: "deployment",
