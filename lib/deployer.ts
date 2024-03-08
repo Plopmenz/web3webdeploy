@@ -7,6 +7,8 @@ import esbuild from "esbuild"
 import {
   createPublicClient,
   createTestClient,
+  decodeEventLog,
+  DecodeEventLogReturnType,
   encodeDeployData,
   encodeFunctionData,
   fromBytes,
@@ -25,6 +27,7 @@ import {
   Bytes,
   DeployInfo,
   DeployScript,
+  EventInfo,
   ExecuteInfo,
   ForgeArtifact,
   GenerateSettings,
@@ -171,15 +174,18 @@ export async function generate(settings: GenerateSettings) {
   const locallyExecuteTransaction = async (
     transaction: UnsignedDeploymentTransaction | UnsignedFunctionTransaction
   ) => {
-    await chainVariables[
-      transaction.transactionSettings.chainId.toString()
-    ].testClient.sendUnsignedTransaction({
+    const clients =
+      chainVariables[transaction.transactionSettings.chainId.toString()]
+    const transactionHash = await clients.testClient.sendUnsignedTransaction({
       from: transaction.from,
       to: transaction.to,
       value: transaction.value,
       data: transaction.data,
       gas: transaction.gas,
       nonce: Number(transaction.transactionSettings.nonce),
+    })
+    return clients.publicClient.waitForTransactionReceipt({
+      hash: transactionHash,
     })
   }
 
@@ -252,10 +258,10 @@ export async function generate(settings: GenerateSettings) {
       }
 
       await saveTransaction(deployTransaction, batchId)
-      await locallyExecuteTransaction(deployTransaction)
+      const receipt = await locallyExecuteTransaction(deployTransaction)
 
       chainVariables[chainId.toString()].nonce[from]++
-      return predictedAddress
+      return { address: predictedAddress, receipt: receipt }
     },
     execute: async (executeInfo: ExecuteInfo) => {
       const { chainId, from, baseFee, priorityFee, nonce } =
@@ -301,15 +307,51 @@ export async function generate(settings: GenerateSettings) {
       }
 
       await saveTransaction(functionTransaction, batchId)
-      await locallyExecuteTransaction(functionTransaction)
+      const receipt = await locallyExecuteTransaction(functionTransaction)
 
       chainVariables[chainId.toString()].nonce[from]++
+      return { receipt: receipt }
     },
     startContext: (context: string) => {
       executionContext.push(path.join(getCurrentContext(), context))
     },
     finishContext: () => {
       executionContext.pop()
+    },
+
+    getEvents: async (eventInfo: EventInfo) => {
+      const abi =
+        typeof eventInfo.abi === "string"
+          ? (
+              await getArtifactAndCompile(
+                eventInfo.abi,
+                getCurrentContext(),
+                compiledProjects
+              )
+            ).abi
+          : eventInfo.abi
+
+      const events = eventInfo.logs
+        .map((log) => {
+          if (
+            eventInfo.address &&
+            log.address.toLowerCase() !== eventInfo.address.toLowerCase()
+          ) {
+            return undefined
+          }
+
+          try {
+            return decodeEventLog({
+              abi: abi,
+              topics: log.topics,
+              data: log.data,
+              strict: true,
+              eventName: eventInfo.eventName,
+            })
+          } catch {}
+        })
+        .filter((event) => event !== undefined) as DecodeEventLogReturnType[]
+      return events
     },
   }
 

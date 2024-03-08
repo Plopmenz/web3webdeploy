@@ -1,3 +1,5 @@
+import { DecodeEventLogReturnType, Log, TransactionReceipt } from "viem"
+
 export type Address = `0x${string}`
 export type Bytes = `0x${string}`
 
@@ -150,12 +152,25 @@ export interface ExecuteInfo {
   value?: bigint
 }
 
+export interface EventInfo {
+  abi: AbiItem[] | string
+  logs: Log[]
+  address?: Address
+  eventName?: string
+}
+
 export interface Deployer {
   settings: GenerateSettings
-  deploy: (deployInfo: DeployInfo) => Promise<Address>
-  execute: (executeInfo: ExecuteInfo) => Promise<void>
+  deploy: (
+    deployInfo: DeployInfo
+  ) => Promise<{ address: Address; receipt: TransactionReceipt }>
+  execute: (
+    executeInfo: ExecuteInfo
+  ) => Promise<{ receipt: TransactionReceipt }>
   startContext: (context: string) => void
   finishContext: () => void
+
+  getEvents: (eventInfo: EventInfo) => Promise<DecodeEventLogReturnType[]>
 }
 
 export interface DeployScript {
