@@ -62,7 +62,7 @@ export function Transactions() {
   const publicClient = usePublicClient({ chainId: chainId })
 
   useEffect(() => {
-    if (customGasFee) {
+    if (customGasFee || !publicClient) {
       return
     }
 
@@ -96,7 +96,7 @@ export function Transactions() {
       }
 
       const request: GenerateRequest = {
-        defaultChainId: BigInt(chainId),
+        defaultChainId: chainId,
         defaultBaseFee: baseFee,
         defaultPriorityFee: Gwei(1),
         defaultFrom: address,

@@ -1,21 +1,15 @@
-import { DecodeEventLogReturnType, Log, TransactionReceipt } from "viem"
+import {
+  AbiItem,
+  Address,
+  DecodeEventLogReturnType,
+  Hex,
+  Log,
+  TransactionReceipt,
+} from "viem"
 
-export type Address = `0x${string}`
-export type Bytes = `0x${string}`
-
-export interface AbiParameter {
-  name: string
-  type: string
-  internalType: string
-}
-
-export interface AbiItem {
-  type: string
-  name: string
-  inputs: AbiParameter[]
-  outputs: AbiParameter[]
-  stateMutability: string
-}
+export type { Address }
+export type Bytes = Hex
+export type { AbiItem }
 
 export interface ForgeArtifact {
   abi: AbiItem[]
@@ -80,7 +74,7 @@ export interface Artifact {
 }
 
 export interface TransactionSettings {
-  chainId: bigint
+  chainId: number
   nonce: bigint
   baseFee: bigint
   priorityFee: bigint
@@ -131,7 +125,7 @@ export interface DeployInfo {
   create2?: boolean
   salt?: string | Uint8Array
   from?: Address
-  chainId?: bigint
+  chainId?: number
   nonce?: bigint
   baseFee?: bigint
   priorityFee?: bigint
@@ -145,7 +139,7 @@ export interface ExecuteInfo {
   args?: any[]
   id?: string
   from?: Address
-  chainId?: bigint
+  chainId?: number
   nonce?: bigint
   baseFee?: bigint
   priorityFee?: bigint
@@ -170,16 +164,17 @@ export interface Deployer {
   startContext: (context: string) => void
   finishContext: () => void
 
+  getDeployment: (deploymentName?: string) => Promise<any>
   getEvents: (eventInfo: EventInfo) => Promise<DecodeEventLogReturnType[]>
 }
 
 export interface DeployScript {
-  deploy?: (deployer: Deployer) => Promise<void>
+  deploy?: (deployer: Deployer) => Promise<any>
 }
 
 export interface GenerateSettings {
   defaultFrom: Address
-  defaultChainId: bigint
+  defaultChainId: number
   defaultBaseFee: bigint
   defaultPriorityFee: bigint
 }

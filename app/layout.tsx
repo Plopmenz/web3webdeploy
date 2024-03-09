@@ -3,13 +3,11 @@ import "@rainbow-me/rainbowkit/styles.css"
 
 import { Metadata, Viewport } from "next"
 import { config as dotEnvConfig } from "dotenv"
-import { WagmiConfig } from "wagmi"
 
 import { siteConfig } from "@/config/site"
-import { config } from "@/config/wagmi-config"
 import { fontSans } from "@/lib/fonts"
 import { cn } from "@/lib/utils"
-import { ThemedRaindbowProvider } from "@/components/custom/themed-rainbow-provider"
+import { Web3Provider } from "@/components/custom/web3-provider"
 import { SiteHeader } from "@/components/site-header"
 import { TailwindIndicator } from "@/components/tailwind-indicator"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -24,9 +22,9 @@ export const metadata: Metadata = {
   },
   description: siteConfig.description,
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon-16x16.png",
-    apple: "/apple-touch-icon.png",
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
   },
 }
 export const viewport: Viewport = {
@@ -52,15 +50,13 @@ export default function RootLayout({ children }: RootLayoutProps) {
           )}
         >
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <WagmiConfig config={config}>
-              <ThemedRaindbowProvider>
-                <div className="relative flex min-h-screen flex-col">
-                  <SiteHeader />
-                  <div className="flex-1">{children}</div>
-                </div>
-                <TailwindIndicator />{" "}
-              </ThemedRaindbowProvider>
-            </WagmiConfig>
+            <Web3Provider>
+              <div className="relative flex min-h-screen flex-col">
+                <SiteHeader />
+                <div className="flex-1">{children}</div>
+              </div>
+              <TailwindIndicator />{" "}
+            </Web3Provider>
           </ThemeProvider>
         </body>
       </html>

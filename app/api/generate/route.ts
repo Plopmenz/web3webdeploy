@@ -7,7 +7,6 @@ export async function POST(req: Request) {
     const settings = JSON.parse(await req.text()) as GenerateRequest
     await generate({
       ...settings,
-      defaultChainId: BigInt(settings.defaultChainId),
       defaultBaseFee: BigInt(settings.defaultBaseFee),
       defaultPriorityFee: BigInt(settings.defaultPriorityFee),
     })

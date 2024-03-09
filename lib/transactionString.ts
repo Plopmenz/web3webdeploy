@@ -10,7 +10,7 @@ export function sanitizeTransaction<T extends UnsignedTransactionBase>(
     ...transaction,
     value: BigInt(transaction.value),
     transactionSettings: {
-      chainId: BigInt(transaction.transactionSettings.chainId),
+      ...transaction.transactionSettings,
       nonce: BigInt(transaction.transactionSettings.nonce),
       baseFee: BigInt(transaction.transactionSettings.baseFee),
       priorityFee: BigInt(transaction.transactionSettings.priorityFee),

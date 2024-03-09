@@ -51,7 +51,7 @@ export async function generate(settings: GenerateSettings) {
 
   let localForkPort = 18078
   const chainVariables: {
-    [chainId: string]: {
+    [chainId: number]: {
       localFork: ChildProcess
       publicClient: PublicClient
       testClient: TestClient
@@ -59,8 +59,8 @@ export async function generate(settings: GenerateSettings) {
     }
   } = {}
 
-  const getNonce = async (address: Address, chainId: bigint) => {
-    const variables = chainVariables[chainId.toString()]
+  const getNonce = async (address: Address, chainId: number) => {
+    const variables = chainVariables[chainId]
 
     if (!Object.hasOwn(variables.nonce, address)) {
       await variables.testClient.impersonateAccount({ address: address })
@@ -85,7 +85,7 @@ export async function generate(settings: GenerateSettings) {
 
   const getTransactionVariables = async (info: DeployInfo | ExecuteInfo) => {
     const chainId = info.chainId ?? settings.defaultChainId
-    if (!Object.hasOwn(chainVariables, chainId.toString())) {
+    if (!Object.hasOwn(chainVariables, chainId)) {
       const chain = getChain(chainId)
       const port = localForkPort++
       const forkRPC = chain.rpcUrls.default.http[0]
@@ -116,7 +116,7 @@ export async function generate(settings: GenerateSettings) {
         )
       }
 
-      chainVariables[chainId.toString()] = {
+      chainVariables[chainId] = {
         localFork: anvilInstance,
         publicClient: createPublicClient({
           chain: chain,
@@ -154,10 +154,10 @@ export async function generate(settings: GenerateSettings) {
   const estimateGas = async (
     from: Address,
     baseTransaction: { to?: Address; value: bigint; data: Bytes },
-    chainId: bigint,
+    chainId: number,
     transactionId: string
   ) => {
-    return await chainVariables[chainId.toString()].publicClient
+    return await chainVariables[chainId].publicClient
       .estimateGas({
         account: from,
         ...baseTransaction,
@@ -174,8 +174,7 @@ export async function generate(settings: GenerateSettings) {
   const locallyExecuteTransaction = async (
     transaction: UnsignedDeploymentTransaction | UnsignedFunctionTransaction
   ) => {
-    const clients =
-      chainVariables[transaction.transactionSettings.chainId.toString()]
+    const clients = chainVariables[transaction.transactionSettings.chainId]
     const transactionHash = await clients.testClient.sendUnsignedTransaction({
       from: transaction.from,
       to: transaction.to,
@@ -260,7 +259,7 @@ export async function generate(settings: GenerateSettings) {
       await saveTransaction(deployTransaction, batchId)
       const receipt = await locallyExecuteTransaction(deployTransaction)
 
-      chainVariables[chainId.toString()].nonce[from]++
+      chainVariables[chainId].nonce[from]++
       return { address: predictedAddress, receipt: receipt }
     },
     execute: async (executeInfo: ExecuteInfo) => {
@@ -309,7 +308,7 @@ export async function generate(settings: GenerateSettings) {
       await saveTransaction(functionTransaction, batchId)
       const receipt = await locallyExecuteTransaction(functionTransaction)
 
-      chainVariables[chainId.toString()].nonce[from]++
+      chainVariables[chainId].nonce[from]++
       return { receipt: receipt }
     },
     startContext: (context: string) => {
@@ -319,6 +318,17 @@ export async function generate(settings: GenerateSettings) {
       executionContext.pop()
     },
 
+    getDeployment: async (deploymentName?: string) => {
+      const deployment = await readFile(
+        path.join(
+          config.deploymentsDir,
+          "deployments",
+          deploymentName ?? "latest.json"
+        ),
+        { encoding: "utf-8" }
+      )
+      return JSON.parse(deployment)
+    },
     getEvents: async (eventInfo: EventInfo) => {
       const abi =
         typeof eventInfo.abi === "string"
@@ -421,7 +431,11 @@ export async function generate(settings: GenerateSettings) {
     )
   } else {
     try {
-      await deployScript.deploy(deployer)
+      const deployment = await deployScript.deploy(deployer)
+      await writeFile(
+        path.join(config.deploymentsDir, "deployments", "latest.json"),
+        JSON.stringify(deployment)
+      )
     } finally {
       // Stop local chain processes
       Object.values(chainVariables).forEach((chainInfo) =>

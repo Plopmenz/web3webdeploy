@@ -7,16 +7,15 @@ const chains = Object.values(allChains)
  * @param chainId - Chain id of the target EVM chain.
  * @returns Viem's chain object.
  */
-export function getChain(chainId: bigint) {
-  const chainIdNumber = Number(chainId)
+export function getChain(chainId: number) {
   for (const chain of chains) {
-    if (chain.id === chainIdNumber) {
+    if (chain.id === chainId) {
       if (chain.id === 11155111) {
         return {
           ...chain,
           rpcUrls: {
             default: {
-              // Default sepolia rpc is very restrictive
+              // Default sepolia rpc is very restrictive (does not allow fork simulation)
               http: ["https://rpc.ankr.com/eth_sepolia"],
             },
             public: {
@@ -37,7 +36,7 @@ export interface Explorer {
   name: string
   url: string
 }
-export function getExplorer(chainId: bigint): Explorer | undefined {
+export function getExplorer(chainId: number): Explorer | undefined {
   const chain = getChain(chainId)
   if (!Object.hasOwn(chain, "blockExplorers")) {
     return undefined
@@ -46,7 +45,7 @@ export function getExplorer(chainId: bigint): Explorer | undefined {
   return (chain as any).blockExplorers.default
 }
 
-export function getVerificationExplorer(chainId: bigint): Explorer | undefined {
+export function getVerificationExplorer(chainId: number): Explorer | undefined {
   const chain = getChain(chainId)
   if (!Object.hasOwn(chain, "blockExplorers")) {
     return undefined
@@ -59,25 +58,78 @@ export function getVerificationExplorer(chainId: bigint): Explorer | undefined {
   if (verificationExplorer) {
     return {
       name: verificationExplorer.name,
-      url: getVerificationUrl(verificationExplorer),
+      url: getVerificationUrl(verificationExplorer, chainId),
     }
   }
 
   return undefined
 }
 
-function getVerificationUrl(explorer: Explorer): string {
-  // Ideally there would be some package to get these (by chainid works)
-  // Can steal some from this: https://github.com/wighawag/hardhat-deploy/blob/master/src/etherscan.ts
-  if (explorer.url === "https://sepolia.etherscan.io") {
-    return "https://api-sepolia.etherscan.io/api"
+function getVerificationUrl(explorer: Explorer, chainId: number): string {
+  // Ideally there would be some package to get these
+  // This list comes from: https://github.com/wighawag/hardhat-deploy/blob/master/src/etherscan.ts
+  switch (chainId) {
+    case 1:
+      return "https://api.etherscan.io/api"
+    case 3:
+      return "https://api-ropsten.etherscan.io/api"
+    case 4:
+      return "https://api-rinkeby.etherscan.io/api"
+    case 5:
+      return "https://api-goerli.etherscan.io/api"
+    case 10:
+      return "https://api-optimistic.etherscan.io/api"
+    case 42:
+      return "https://api-kovan.etherscan.io/api"
+    case 97:
+      return "https://api-testnet.bscscan.com/api"
+    case 56:
+      return "https://api.bscscan.com/api"
+    case 69:
+      return "https://api-kovan-optimistic.etherscan.io/api"
+    case 70:
+      return "https://api.hooscan.com/api"
+    case 77:
+      return "https://blockscout.com/poa/sokol"
+    case 128:
+      return "https://api.hecoinfo.com/api"
+    case 137:
+      return "https://api.polygonscan.com/api"
+    case 250:
+      return "https://api.ftmscan.com/api"
+    case 256:
+      return "https://api-testnet.hecoinfo.com/api"
+    case 420:
+      return "https://api-goerli-optimism.etherscan.io/api"
+    case 588:
+      return "https://stardust-explorer.metis.io/api"
+    case 1088:
+      return "https://andromeda-explorer.metis.io/api"
+    case 1284:
+      return "https://api-moonbeam.moonscan.io/api"
+    case 1285:
+      return "https://api-moonriver.moonscan.io/api"
+    case 80001:
+      return "https://api-testnet.polygonscan.com/api"
+    case 4002:
+      return "https://api-testnet.ftmscan.com/api"
+    case 42161:
+      return "https://api.arbiscan.io/api"
+    case 421611:
+      return "https://api-testnet.arbiscan.io/api"
+    case 421613:
+      return "https://api-goerli.arbiscan.io/api"
+    case 43113:
+      return "https://api-testnet.snowtrace.io/api"
+    case 43114:
+      return "https://api.snowtrace.io/api"
+    case 338:
+      return "https://api-testnet.cronoscan.com/api"
+    case 25:
+      return "https://api.cronoscan.com/api"
+    case 11155111:
+      return "https://api-sepolia.etherscan.io/api"
+    default:
+      return `https://api.${explorer.url.replace("https://", "")}/api`
   }
-  if (explorer.url === "https://mumbai.polygonscan.com") {
-    return "https://api-testnet.polygonscan.com/api"
-  }
-  if (explorer.url === "https://goerli.basescan.org") {
-    return "https://api-goerli.basescan.org/api"
-  }
-
-  return `https://api.${explorer.url.replace("https://", "")}/api`
 }

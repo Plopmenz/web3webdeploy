@@ -1,12 +1,12 @@
-import { Address, UnsignedDeploymentTransaction } from "@/types"
+import { UnsignedDeploymentTransaction } from "@/types"
 import { Tenderly } from "@tenderly/sdk"
 
-function getSdk(chainId: bigint) {
+function getSdk(chainId: number) {
   const tenderly = new Tenderly({
     accessKey: process.env.TENDERLY_ACCESS_KEY || ``,
     accountName: process.env.TENDERLY_ACCOUNT_NAME || ``,
     projectName: process.env.TENDERLY_PROJECT_NAME || ``,
-    network: Number(chainId),
+    network: chainId,
   })
   return tenderly
 }

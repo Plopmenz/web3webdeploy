@@ -10,7 +10,7 @@ import {
   VerificationServices,
 } from "@/types"
 import axios from "axios"
-import { useWaitForTransaction } from "wagmi"
+import { useWaitForTransactionReceipt } from "wagmi"
 
 import { getExplorer, getVerificationExplorer } from "@/lib/chains"
 import {
@@ -91,9 +91,9 @@ export function SubmittedTransactionComponent({
 }: {
   transaction: SubmittedTransaction
 }) {
-  const { isLoading, isError, error } = useWaitForTransaction({
+  const { isLoading, isError, error } = useWaitForTransactionReceipt({
     hash: transaction.submitted.transactionHash,
-    chainId: Number(transaction.transactionSettings.chainId),
+    chainId: transaction.transactionSettings.chainId,
   })
 
   const verified = useMemo<{
