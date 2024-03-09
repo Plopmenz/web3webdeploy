@@ -12,9 +12,10 @@ export interface Config {
   projectRoot: string
   deployDir: string
   deployFile: string
-  deploymentsDir: string
+  deploymentDir: string
   unsignedTransactionsDir: string
   submittedTransactionsDir: string
+  savedDeploymentsDir: string
   artifactsDir: string
 }
 type ConfigFile = Omit<Config, "defaultSalt"> & {
@@ -70,14 +71,18 @@ export async function getConfig(startingPath?: string): Promise<Config> {
     configFile.projectRoot ??= configPath
     configFile.deployDir ??= path.join(configFile.projectRoot, "deploy")
     configFile.deployFile ??= path.join(configFile.deployDir, "deploy.ts")
-    configFile.deploymentsDir ??= path.join(configFile.projectRoot, "deployed")
+    configFile.deploymentDir ??= path.join(configFile.projectRoot, "deployed")
     configFile.unsignedTransactionsDir ??= path.join(
-      configFile.deploymentsDir,
+      configFile.deploymentDir,
       "unsigned"
     )
     configFile.submittedTransactionsDir ??= path.join(
-      configFile.deploymentsDir,
+      configFile.deploymentDir,
       "submitted"
+    )
+    configFile.savedDeploymentsDir ??= path.join(
+      configFile.deploymentDir,
+      "deployments"
     )
     configFile.artifactsDir ??= path.join(configFile.projectRoot, "out")
 

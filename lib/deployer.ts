@@ -320,11 +320,7 @@ export async function generate(settings: GenerateSettings) {
 
     getDeployment: async (deploymentName?: string) => {
       const deployment = await readFile(
-        path.join(
-          config.deploymentsDir,
-          "deployments",
-          deploymentName ?? "latest.json"
-        ),
+        path.join(config.savedDeploymentsDir, deploymentName ?? "latest.json"),
         { encoding: "utf-8" }
       )
       return JSON.parse(deployment)
@@ -372,7 +368,7 @@ export async function generate(settings: GenerateSettings) {
       await Promise.all(
         subDirectories.map(
           (d) =>
-            readdir(path.join(config.deploymentsDir, d))
+            readdir(path.join(config.deploymentDir, d))
               .then((files) => files.length == 0)
               .catch((error) => true) // Assume expection means non-existent
         )
@@ -384,13 +380,13 @@ export async function generate(settings: GenerateSettings) {
       // Clear all leftover transactions
       await Promise.all(
         subDirectories.map((d) =>
-          rm(path.join(config.deploymentsDir, d), {
+          rm(path.join(config.deploymentDir, d), {
             force: true,
             recursive: true,
           }).catch((error: any) => {
             throw new Error(
               `Could not clean up directory ${path.join(
-                config.deploymentsDir,
+                config.deploymentDir,
                 d
               )}: ${error?.message ?? JSON.stringify(error)}`
             )
@@ -432,8 +428,11 @@ export async function generate(settings: GenerateSettings) {
   } else {
     try {
       const deployment = await deployScript.deploy(deployer)
+      await mkdir(config.savedDeploymentsDir, {
+        recursive: true,
+      })
       await writeFile(
-        path.join(config.deploymentsDir, "deployments", "latest.json"),
+        path.join(config.savedDeploymentsDir, "latest.json"),
         JSON.stringify(deployment)
       )
     } finally {
