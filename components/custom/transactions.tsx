@@ -7,6 +7,7 @@ import { SubmittedTransaction, UnsignedTransactionBase } from "@/types"
 import { zodResolver } from "@hookform/resolvers/zod"
 import axios from "axios"
 import { useForm } from "react-hook-form"
+import { formatUnits, parseUnits } from "viem"
 import { useAccount, useChainId, usePublicClient } from "wagmi"
 import * as z from "zod"
 
@@ -15,6 +16,7 @@ import { sanitizeTransaction } from "@/lib/transactionString"
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -41,6 +43,7 @@ interface AllTransactions {
 export function Transactions() {
   const generateForm = z.object({
     baseFee: z.string().regex(new RegExp("[0-9]+.?[0-9]*")),
+    batchId: z.string().min(1, "This cannot be empty"),
   })
 
   const [generating, setGenerating] = useState<boolean>(false)
@@ -83,11 +86,8 @@ export function Transactions() {
     }
   }, [publicClient, customGasFee])
 
-  useEffect(() => {
-    if (!generating) {
-      return
-    }
-
+  const onSubmit = (values: z.infer<typeof generateForm>) => {
+    setGenerating(true)
     const generate = async () => {
       if (!address) {
         console.error("Tried to generate without address")
@@ -97,16 +97,18 @@ export function Transactions() {
 
       const request: GenerateRequest = {
         defaultChainId: chainId,
-        defaultBaseFee: baseFee,
+        defaultBaseFee: customGasFee ? parseUnits(values.baseFee, 9) : baseFee,
         defaultPriorityFee: Gwei(1),
         defaultFrom: address,
+
+        batchId: values.batchId,
       }
       await axios.post("/api/generate", JSON.stringify(request))
-      setGenerating(false)
     }
-
-    generate().catch(console.error)
-  }, [generating, address, chainId])
+    generate()
+      .catch(console.error)
+      .finally(() => setGenerating(false))
+  }
 
   const getTransactions = async () => {
     const { data } = await axios.post("/api/transactions")
@@ -142,21 +144,7 @@ export function Transactions() {
     <div>
       <div className="grid grid-cols-1 gap-3">
         <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(
-              (values: z.infer<typeof generateForm>) => {
-                if (customGasFee) {
-                  const baseFeeComponents = values.baseFee.split(".")
-                  setBaseFee(
-                    BigInt(baseFeeComponents[0]) * gwei +
-                      BigInt(baseFeeComponents.at(1)?.padEnd(9, "0") ?? 0)
-                  )
-                }
-                setGenerating(true)
-              }
-            )}
-            className="space-y-8"
-          >
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <FormField
               control={form.control}
               name="baseFee"
@@ -169,11 +157,7 @@ export function Transactions() {
                         {...field}
                         disabled={!customGasFee}
                         value={
-                          customGasFee
-                            ? field.value
-                            : `${(baseFee / gwei).toString()}.${(baseFee % gwei)
-                                .toString()
-                                .padStart(9, "0")}`
+                          customGasFee ? field.value : formatUnits(baseFee, 9)
                         }
                       />
                       <Button
@@ -184,6 +168,24 @@ export function Transactions() {
                       </Button>
                     </div>
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="batchId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Deployment name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    This name should make clear to others what deployment this
+                    refers to. Its recommended to include values such as chain
+                    and smart contracts version.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

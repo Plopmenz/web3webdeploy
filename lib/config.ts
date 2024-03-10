@@ -8,6 +8,7 @@ export interface Config {
   defaultCreate2: boolean
   defaultSalt: Uint8Array
   create2Deployer: Address
+  defaultExport: boolean
 
   projectRoot: string
   deployDir: string
@@ -16,6 +17,7 @@ export interface Config {
   unsignedTransactionsDir: string
   submittedTransactionsDir: string
   savedDeploymentsDir: string
+  exportDir: string
   artifactsDir: string
 }
 type ConfigFile = Omit<Config, "defaultSalt"> & {
@@ -67,6 +69,7 @@ export async function getConfig(startingPath?: string): Promise<Config> {
     configFile.defaultCreate2 ??= false
     configFile.defaultSalt ??= "web3webdeploy"
     configFile.create2Deployer ??= "0x4e59b44847b379578588920ca78fbf26c0b4956c" // From https://book.getfoundry.sh/tutorials/create2-tutorial (using https://github.com/Arachnid/deterministic-deployment-proxy)
+    configFile.defaultExport ??= true
 
     configFile.projectRoot ??= configPath
     configFile.deployDir ??= path.join(configFile.projectRoot, "deploy")
@@ -84,6 +87,7 @@ export async function getConfig(startingPath?: string): Promise<Config> {
       configFile.deploymentDir,
       "deployments"
     )
+    configFile.exportDir ??= path.join(configFile.projectRoot, "export")
     configFile.artifactsDir ??= path.join(configFile.projectRoot, "out")
 
     configCache[configPath] = {

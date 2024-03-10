@@ -130,6 +130,8 @@ export interface DeployInfo {
   baseFee?: bigint
   priorityFee?: bigint
   value?: bigint
+
+  export?: boolean
 }
 
 export interface ExecuteInfo {
@@ -153,6 +155,15 @@ export interface EventInfo {
   eventName?: string
 }
 
+export interface SaveDeploymentInfo {
+  deploymentName: string
+  deployment: any
+}
+
+export interface LoadDeploymentInfo {
+  deploymentName: string
+}
+
 export interface Deployer {
   settings: GenerateSettings
   deploy: (
@@ -164,12 +175,13 @@ export interface Deployer {
   startContext: (context: string) => void
   finishContext: () => void
 
-  getDeployment: (deploymentName?: string) => Promise<any>
+  saveDeployment: (deploymentInfo: SaveDeploymentInfo) => Promise<void>
+  loadDeployment: (deploymentInfo: LoadDeploymentInfo) => Promise<any>
   getEvents: (eventInfo: EventInfo) => Promise<DecodeEventLogReturnType[]>
 }
 
 export interface DeployScript {
-  deploy?: (deployer: Deployer) => Promise<any>
+  deploy?: (deployer: Deployer) => Promise<void>
 }
 
 export interface GenerateSettings {
@@ -177,6 +189,8 @@ export interface GenerateSettings {
   defaultChainId: number
   defaultBaseFee: bigint
   defaultPriorityFee: bigint
+
+  batchId: string
 }
 
 export enum VerificationServices {

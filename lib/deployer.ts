@@ -32,6 +32,8 @@ import {
   ForgeArtifact,
   GenerateSettings,
   JsonDescription,
+  LoadDeploymentInfo,
+  SaveDeploymentInfo,
   SubmittedTransaction,
   UnsignedDeploymentTransaction,
   UnsignedFunctionTransaction,
@@ -72,17 +74,7 @@ export async function generate(settings: GenerateSettings) {
     return variables.nonce[address]
   }
 
-  const generationStart = new Date()
-  const generationYYYY = generationStart.getFullYear().toString()
-  const generationMM = (generationStart.getMonth() + 1)
-    .toString()
-    .padStart(2, "0")
-  const generationDD = generationStart.getDate().toString().padStart(2, "0")
-  const generationHH = generationStart.getHours().toString().padStart(2, "0")
-  const generationmm = generationStart.getMinutes().toString().padStart(2, "0")
-  const generationSS = generationStart.getSeconds().toString().padStart(2, "0")
-  const batchId = `${generationYYYY}${generationMM}${generationDD}_${generationHH}${generationmm}${generationSS}`
-
+  const batchId = settings.batchId
   const getTransactionVariables = async (info: DeployInfo | ExecuteInfo) => {
     const chainId = info.chainId ?? settings.defaultChainId
     if (!Object.hasOwn(chainVariables, chainId)) {
@@ -148,6 +140,20 @@ export async function generate(settings: GenerateSettings) {
     await writeFile(
       path.join(batchDir, `${transaction.id}.json`),
       transactionToString(transaction)
+    )
+  }
+  const exportContract = async (
+    transaction: UnsignedDeploymentTransaction,
+    batchId: string
+  ) => {
+    const localConfig = await getConfig(getCurrentContext())
+    const batchDir = path.join(localConfig.exportDir, batchId)
+    await mkdir(batchDir, {
+      recursive: true,
+    })
+    await writeFile(
+      path.join(batchDir, `${transaction.id}.ts`),
+      `export const ${transaction.id}Contract = ${JSON.stringify({ address: transaction.deploymentAddress, abi: transaction.artifact.abi })} as const;`
     )
   }
 
@@ -256,8 +262,11 @@ export async function generate(settings: GenerateSettings) {
         source: getCurrentContext(),
       }
 
-      await saveTransaction(deployTransaction, batchId)
       const receipt = await locallyExecuteTransaction(deployTransaction)
+      await saveTransaction(deployTransaction, batchId)
+      if (deployInfo.export ?? config.defaultExport) {
+        await exportContract(deployTransaction, batchId)
+      }
 
       chainVariables[chainId].nonce[from]++
       return { address: predictedAddress, receipt: receipt }
@@ -318,9 +327,26 @@ export async function generate(settings: GenerateSettings) {
       executionContext.pop()
     },
 
-    getDeployment: async (deploymentName?: string) => {
+    saveDeployment: async (deploymentInfo: SaveDeploymentInfo) => {
+      const localConfig = await getConfig(getCurrentContext())
+      await mkdir(localConfig.savedDeploymentsDir, {
+        recursive: true,
+      })
+      await writeFile(
+        path.join(
+          localConfig.savedDeploymentsDir,
+          deploymentInfo.deploymentName
+        ),
+        JSON.stringify(deploymentInfo.deployment)
+      )
+    },
+    loadDeployment: async (deploymentInfo: LoadDeploymentInfo) => {
+      const localConfig = await getConfig(getCurrentContext())
       const deployment = await readFile(
-        path.join(config.savedDeploymentsDir, deploymentName ?? "latest.json"),
+        path.join(
+          localConfig.savedDeploymentsDir,
+          deploymentInfo.deploymentName
+        ),
         { encoding: "utf-8" }
       )
       return JSON.parse(deployment)
@@ -427,14 +453,7 @@ export async function generate(settings: GenerateSettings) {
     )
   } else {
     try {
-      const deployment = await deployScript.deploy(deployer)
-      await mkdir(config.savedDeploymentsDir, {
-        recursive: true,
-      })
-      await writeFile(
-        path.join(config.savedDeploymentsDir, "latest.json"),
-        JSON.stringify(deployment)
-      )
+      await deployScript.deploy(deployer)
     } finally {
       // Stop local chain processes
       Object.values(chainVariables).forEach((chainInfo) =>
