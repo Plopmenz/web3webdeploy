@@ -1,4 +1,4 @@
-import {
+import viem, {
   AbiItem,
   Address,
   DecodeEventLogReturnType,
@@ -165,6 +165,7 @@ export interface LoadDeploymentInfo {
 }
 
 export interface Deployer {
+  viem: typeof viem
   settings: GenerateSettings
   deploy: (
     deployInfo: DeployInfo
@@ -177,6 +178,7 @@ export interface Deployer {
 
   saveDeployment: (deploymentInfo: SaveDeploymentInfo) => Promise<void>
   loadDeployment: (deploymentInfo: LoadDeploymentInfo) => Promise<any>
+  getAbi: (contractName: string) => Promise<AbiItem[]>
   getEvents: (eventInfo: EventInfo) => Promise<DecodeEventLogReturnType[]>
 }
 

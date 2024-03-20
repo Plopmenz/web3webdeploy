@@ -4,6 +4,7 @@ import { Module } from "module"
 import path from "path"
 import { promisify } from "util"
 import esbuild from "esbuild"
+import * as viem from "viem"
 import {
   createPublicClient,
   createTestClient,
@@ -142,6 +143,15 @@ export async function generate(settings: GenerateSettings) {
       transactionToString(transaction)
     )
   }
+
+  const getAbi = async (contractName: string) => {
+    return await getArtifactAndCompile(
+      contractName,
+      getCurrentContext(),
+      compiledProjects
+    ).then((artifact) => artifact.abi)
+  }
+
   const exportContract = async (
     transaction: UnsignedDeploymentTransaction,
     batchId: string
@@ -195,6 +205,7 @@ export async function generate(settings: GenerateSettings) {
   }
 
   const deployer = {
+    viem: viem,
     settings: settings,
     deploy: async (deployInfo: DeployInfo) => {
       const { chainId, from, baseFee, priorityFee, nonce } =
@@ -279,13 +290,7 @@ export async function generate(settings: GenerateSettings) {
 
       const abi =
         typeof executeInfo.abi === "string"
-          ? (
-              await getArtifactAndCompile(
-                executeInfo.abi,
-                getCurrentContext(),
-                compiledProjects
-              )
-            ).abi
+          ? await getAbi(executeInfo.abi)
           : executeInfo.abi
       const baseTransaction = {
         to: executeInfo.to,
@@ -351,16 +356,11 @@ export async function generate(settings: GenerateSettings) {
       )
       return JSON.parse(deployment)
     },
+    getAbi: getAbi,
     getEvents: async (eventInfo: EventInfo) => {
       const abi =
         typeof eventInfo.abi === "string"
-          ? (
-              await getArtifactAndCompile(
-                eventInfo.abi,
-                getCurrentContext(),
-                compiledProjects
-              )
-            ).abi
+          ? await getAbi(eventInfo.abi)
           : eventInfo.abi
 
       const events = eventInfo.logs
