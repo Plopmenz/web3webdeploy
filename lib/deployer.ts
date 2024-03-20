@@ -438,6 +438,7 @@ export async function generate(settings: GenerateSettings) {
       resolveDir: path.resolve(config.deployDir),
       sourcefile: path.resolve(config.deployFile),
     },
+    tsconfig: path.join(config.projectRoot, "tsconfig.json"),
   })
   const jsContent = bundle.outputFiles[0].text
 
