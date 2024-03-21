@@ -9,6 +9,7 @@ import {
 import axios from "axios"
 import { useWalletClient } from "wagmi"
 
+import { chains } from "@/config/wagmi-config"
 import { getChain } from "@/lib/chains"
 import { UnsignedToSubmittedRequest } from "@/app/api/apiTypes"
 
@@ -133,6 +134,11 @@ function DeploymentTransaction(transaction: UnsignedDeploymentTransaction) {
       )}
       <li>Predicted deployment address: {transaction.deploymentAddress}</li>
       {transaction.salt && <li>CREATE2 salt: {transaction.salt}</li>}
+      <li>
+        Network:{" "}
+        {chains.find((c) => c.id === transaction.transactionSettings.chainId)
+          ?.name ?? transaction.transactionSettings.chainId}
+      </li>
       <li>Transaction signer: {transaction.from}</li>
       <li>Project: {transaction.source}</li>
     </div>
@@ -155,6 +161,11 @@ function FunctionTransaction(transaction: UnsignedFunctionTransaction) {
       {transaction.value > BigInt(0) && (
         <li>Value: {transaction.value.toString()}</li>
       )}
+      <li>
+        Network:{" "}
+        {chains.find((c) => c.id === transaction.transactionSettings.chainId)
+          ?.name ?? transaction.transactionSettings.chainId}
+      </li>
       <li>Transaction signer: {transaction.from}</li>
       <li>Project: {transaction.source}</li>
     </div>

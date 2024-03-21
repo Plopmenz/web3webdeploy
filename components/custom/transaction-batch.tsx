@@ -28,7 +28,9 @@ export function TransactionBatch<T extends UnsignedTransactionBase>({
         </AccordionTrigger>
         <AccordionContent>
           <div className="grid grid-cols-1 gap-3">
-            {transactionBatch.map(transactionComponent)}
+            {transactionBatch
+              .sort((t1, t2) => t1.batchIndex - t2.batchIndex)
+              .map(transactionComponent)}
           </div>
         </AccordionContent>
       </AccordionItem>

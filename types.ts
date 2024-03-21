@@ -84,6 +84,7 @@ export interface UnsignedTransactionBase {
   type: "function" | "deployment"
   id: string
   batch: string
+  batchIndex: number
   to?: Address // undefined for create deployments
   value: bigint
   data: Bytes
@@ -177,7 +178,9 @@ export interface Deployer {
   finishContext: () => void
 
   saveDeployment: (deploymentInfo: SaveDeploymentInfo) => Promise<void>
-  loadDeployment: (deploymentInfo: LoadDeploymentInfo) => Promise<any>
+  loadDeployment: (
+    deploymentInfo: LoadDeploymentInfo
+  ) => Promise<any | undefined>
   getAbi: (contractName: string) => Promise<AbiItem[]>
   getEvents: (eventInfo: EventInfo) => Promise<DecodeEventLogReturnType[]>
 }

@@ -216,6 +216,7 @@ export async function generate(settings: GenerateSettings) {
     })
   }
 
+  let batchIndex = 0
   const deployer = {
     viem: viem,
     settings: settings,
@@ -265,6 +266,7 @@ export async function generate(settings: GenerateSettings) {
         type: "deployment",
         id: transactionId,
         batch: batchId,
+        batchIndex: batchIndex++,
         deploymentAddress: predictedAddress,
         constructorArgs: deployInfo.args ?? [],
         ...baseTransaction,
@@ -317,6 +319,7 @@ export async function generate(settings: GenerateSettings) {
         type: "function",
         id: transactionId,
         batch: batchId,
+        batchIndex: batchIndex++,
         functionName: executeInfo.function,
         functionArgs: executeInfo.args ?? [],
         ...baseTransaction,
@@ -358,15 +361,22 @@ export async function generate(settings: GenerateSettings) {
       )
     },
     loadDeployment: async (deploymentInfo: LoadDeploymentInfo) => {
-      const localConfig = await getConfig(getCurrentContext())
-      const deployment = await readFile(
-        path.join(
-          localConfig.savedDeploymentsDir,
-          deploymentInfo.deploymentName
-        ),
-        { encoding: "utf-8" }
-      )
-      return JSON.parse(deployment)
+      try {
+        const localConfig = await getConfig(getCurrentContext())
+        const deployment = await readFile(
+          path.join(
+            localConfig.savedDeploymentsDir,
+            deploymentInfo.deploymentName
+          ),
+          { encoding: "utf-8" }
+        )
+        return JSON.parse(deployment)
+      } catch (error) {
+        console.warn(
+          `Deployment ${deploymentInfo.deploymentName} not found: ${error}`
+        )
+        return undefined
+      }
     },
     getAbi: getAbi,
     getEvents: async (eventInfo: EventInfo) => {
@@ -399,7 +409,7 @@ export async function generate(settings: GenerateSettings) {
     },
   }
 
-  if (config.deleteUnfishedDeploymentOnGenerate) {
+  if (config.deleteUnfinishedDeploymentOnGenerate) {
     // Check if all directories are empty (or non-existent)
     const subDirectories = ["unsigned", "queued"] // Except submitted
     const allDirsEmpty = !(
