@@ -156,15 +156,27 @@ export async function generate(settings: GenerateSettings) {
     transaction: UnsignedDeploymentTransaction,
     batchId: string
   ) => {
-    const localConfig = await getConfig(getCurrentContext())
-    const batchDir = path.join(localConfig.exportDir, batchId)
-    await mkdir(batchDir, {
-      recursive: true,
-    })
-    await writeFile(
-      path.join(batchDir, `${transaction.id}.ts`),
-      `export const ${transaction.id}Contract = ${JSON.stringify({ address: transaction.deploymentAddress, abi: transaction.artifact.abi })} as const;`
-    )
+    if (config.exportToOriginalProject) {
+      const localConfig = await getConfig(getCurrentContext())
+      const batchDir = path.join(localConfig.exportDir, batchId)
+      await mkdir(batchDir, {
+        recursive: true,
+      })
+      await writeFile(
+        path.join(batchDir, `${transaction.id}.ts`),
+        `export const ${transaction.id}Contract = ${JSON.stringify({ address: transaction.deploymentAddress, abi: transaction.artifact.abi })} as const;`
+      )
+    }
+    if (config.exportToRootProject) {
+      const batchDir = path.join(config.exportDir, batchId)
+      await mkdir(batchDir, {
+        recursive: true,
+      })
+      await writeFile(
+        path.join(batchDir, `${transaction.id}.ts`),
+        `export const ${transaction.id}Contract = ${JSON.stringify({ address: transaction.deploymentAddress, abi: transaction.artifact.abi })} as const;`
+      )
+    }
   }
 
   const estimateGas = async (
