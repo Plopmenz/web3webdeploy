@@ -39,6 +39,8 @@ export async function verifyEtherscan({
         language: deploymentTransaction.artifact.jsonDescription.language,
         sources: deploymentTransaction.artifact.jsonDescription.sources,
         settings: {
+          remappings:
+            deploymentTransaction.artifact.jsonDescription.settings?.remappings,
           optimizer: {
             enabled:
               deploymentTransaction.artifact.jsonDescription.settings?.optimizer
@@ -46,9 +48,8 @@ export async function verifyEtherscan({
             runs: deploymentTransaction.artifact.jsonDescription.settings
               ?.optimizer?.runs,
           },
-          remappings:
-            deploymentTransaction.artifact.jsonDescription.settings?.remappings,
-          evmVersion: deploymentTransaction.artifact.jsonDescription.evmVersion,
+          evmVersion:
+            deploymentTransaction.artifact.jsonDescription.settings?.evmVersion,
           viaIR: deploymentTransaction.artifact.jsonDescription.settings?.viaIR,
         },
       }),

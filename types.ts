@@ -16,7 +16,6 @@ export interface ForgeArtifact {
   bytecode: {
     object: Bytes
   }
-  rawMetadata: string // contains evmVersion
   metadata: {
     language: string
     compiler: {
@@ -31,18 +30,16 @@ export interface ForgeArtifact {
       compilationTarget: {
         [contractPath: string]: string // Contract name
       }
+      evmVersion: string
       viaIR?: boolean
     }
     sources: {
       [file: string]: {
         keccak256: Bytes
         urls: string[]
-        ast: {}
+        license: string
       }
     }
-  }
-  ast: {
-    license: string
   }
 }
 
@@ -54,9 +51,9 @@ export interface JsonDescription {
   settings?: {
     remappings?: string[]
     optimizer?: { enabled?: boolean; runs?: number }
+    evmVersion?: string
     viaIR?: boolean
   }
-  evmVersion?: string
   metadata: {
     useLiteralContent: true
   }

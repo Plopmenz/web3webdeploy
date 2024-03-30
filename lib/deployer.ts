@@ -615,16 +615,16 @@ async function forgeToArtifact(
     forgeArtifact.metadata.settings.compilationTarget
   )[0]
   const contractName = `${compilationTarget}:${forgeArtifact.metadata.settings.compilationTarget[compilationTarget]}`
-  const license = forgeArtifact.ast.license
+  const license = forgeArtifact.metadata.sources[compilationTarget].license
   const jsonDescription: JsonDescription = {
     language: forgeArtifact.metadata.language,
     sources: forgeArtifact.metadata.sources as any, // Will be transformed into the right format in the next step
     settings: {
-      optimizer: forgeArtifact.metadata.settings.optimizer,
       remappings: forgeArtifact.metadata.settings.remappings,
+      optimizer: forgeArtifact.metadata.settings.optimizer,
+      evmVersion: forgeArtifact.metadata.settings.evmVersion,
       viaIR: forgeArtifact.metadata.settings.viaIR,
     },
-    evmVersion: JSON.parse(forgeArtifact.rawMetadata).settings.evmVersion,
     metadata: { useLiteralContent: true },
   }
   await Promise.all(
@@ -644,8 +644,8 @@ async function forgeToArtifact(
     bytecode: bytecode,
     compiler: compiler,
     contractName: contractName,
-    license: license,
     jsonDescription: jsonDescription,
+    license: license,
   }
 }
 
