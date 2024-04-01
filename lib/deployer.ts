@@ -221,17 +221,18 @@ export async function generate(settings: GenerateSettings) {
     viem: viem,
     settings: settings,
     deploy: async (deployInfo: DeployInfo) => {
+      const localConfig = await getConfig(getCurrentContext())
       const { chainId, from, baseFee, priorityFee, nonce } =
         await getTransactionVariables(deployInfo)
       const transactionId =
         deployInfo.id ?? `${chainId}_${nonce}_${deployInfo.contract}`
 
-      const create2 = deployInfo.create2 ?? config.defaultCreate2
+      const create2 = deployInfo.create2 ?? localConfig.defaultCreate2
       const salt = deployInfo.salt
         ? typeof deployInfo.salt === "string"
           ? padBytes(toBytes(deployInfo.salt), { size: 32 })
           : deployInfo.salt
-        : config.defaultSalt
+        : localConfig.defaultSalt
 
       const artifact = await getArtifactAndCompile(
         deployInfo.contract,
@@ -245,7 +246,7 @@ export async function generate(settings: GenerateSettings) {
       })
       const predictedAddress = create2
         ? getCreate2Address({
-            from: config.create2Deployer,
+            from: localConfig.create2Deployer,
             salt: salt,
             bytecode: bytecode,
           })
@@ -255,7 +256,7 @@ export async function generate(settings: GenerateSettings) {
           })
 
       const baseTransaction = {
-        to: create2 ? config.create2Deployer : undefined,
+        to: create2 ? localConfig.create2Deployer : undefined,
         value: deployInfo.value ?? BigInt(0),
         data: create2
           ? ((fromBytes<"hex">(salt, { to: "hex" }) +
