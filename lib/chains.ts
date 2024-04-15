@@ -131,6 +131,10 @@ function getVerificationUrl(explorer: Explorer, chainId: number): string {
       return "https://api.cronoscan.com/api"
     case 11155111:
       return "https://api-sepolia.etherscan.io/api"
+    case 8453:
+      return "https://api.basescan.org/api"
+    case 84532:
+      return "https://api-sepolia.basescan.org/api"
     default:
       return `https://api.${explorer.url.replace("https://", "")}/api`
   }
