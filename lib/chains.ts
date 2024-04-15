@@ -119,6 +119,8 @@ function getVerificationUrl(explorer: Explorer, chainId: number): string {
       return "https://api-testnet.arbiscan.io/api"
     case 421613:
       return "https://api-goerli.arbiscan.io/api"
+    case 421614:
+      return "https://api-sepolia.arbiscan.io/api"
     case 43113:
       return "https://api-testnet.snowtrace.io/api"
     case 43114:
