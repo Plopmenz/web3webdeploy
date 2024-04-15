@@ -10,21 +10,6 @@ const chains = Object.values(allChains)
 export function getChain(chainId: number) {
   for (const chain of chains) {
     if (chain.id === chainId) {
-      if (chain.id === 11155111) {
-        return {
-          ...chain,
-          rpcUrls: {
-            default: {
-              // Default sepolia rpc is very restrictive (does not allow fork simulation)
-              http: ["https://rpc.ankr.com/eth_sepolia"],
-            },
-            public: {
-              http: ["https://rpc.ankr.com/eth_sepolia"],
-            },
-          },
-        } as const
-      }
-
       return chain
     }
   }

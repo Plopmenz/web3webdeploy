@@ -24,7 +24,11 @@ export const config = getDefaultConfig({
   chains: chains as any, // typescript cannot verify if every chain has an entry in transports
   transports: chains.reduce(
     (acc, chain) => {
-      acc[chain.id] = http()
+      let customProvider: string | undefined = undefined
+      if (chain.id === 11155111) {
+        customProvider = "https://rpc.ankr.com/eth_sepolia"
+      }
+      acc[chain.id] = http(customProvider)
       return acc
     },
     {} as { [chainId: number]: Transport }
