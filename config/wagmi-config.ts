@@ -4,6 +4,7 @@ import { getDefaultConfig } from "@rainbow-me/rainbowkit"
 import { http, Transport } from "viem"
 import * as allChains from "viem/chains"
 
+import { getChainProvider } from "./chain-provider"
 import { siteConfig } from "./site"
 
 export const chains = Object.values(allChains)
@@ -30,11 +31,3 @@ export const config = getDefaultConfig({
     {} as { [chainId: number]: Transport }
   ),
 })
-
-export function getChainProvider(chainId: number): string | undefined {
-  let customProvider: string | undefined = undefined
-  if (chainId === 11155111) {
-    customProvider = "https://rpc.ankr.com/eth_sepolia"
-  }
-  return customProvider
-}

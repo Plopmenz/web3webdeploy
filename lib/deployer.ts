@@ -22,7 +22,7 @@ import {
   toBytes,
 } from "viem"
 
-import { getChainProvider } from "@/config/wagmi-config"
+import { getChainProvider } from "@/config/chain-provider"
 
 import {
   Address,
