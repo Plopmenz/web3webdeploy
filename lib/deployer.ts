@@ -22,6 +22,8 @@ import {
   toBytes,
 } from "viem"
 
+import { getChainProvider } from "@/config/wagmi-config"
+
 import {
   Address,
   Artifact,
@@ -81,7 +83,8 @@ export async function generate(settings: GenerateSettings) {
     if (!Object.hasOwn(chainVariables, chainId)) {
       const chain = getChain(chainId)
       const port = localForkPort++
-      const forkRPC = chain.rpcUrls.default.http[0]
+      const forkRPC =
+        getChainProvider(chain.id) ?? chain.rpcUrls.default.http[0]
       const anvilInstance = spawn("anvil", [
         "--port",
         port.toString(),

@@ -24,13 +24,17 @@ export const config = getDefaultConfig({
   chains: chains as any, // typescript cannot verify if every chain has an entry in transports
   transports: chains.reduce(
     (acc, chain) => {
-      let customProvider: string | undefined = undefined
-      if (chain.id === 11155111) {
-        customProvider = "https://rpc.ankr.com/eth_sepolia"
-      }
-      acc[chain.id] = http(customProvider)
+      acc[chain.id] = http(getChainProvider(chain.id))
       return acc
     },
     {} as { [chainId: number]: Transport }
   ),
 })
+
+export function getChainProvider(chainId: number): string | undefined {
+  let customProvider: string | undefined = undefined
+  if (chainId === 11155111) {
+    customProvider = "https://rpc.ankr.com/eth_sepolia"
+  }
+  return customProvider
+}
