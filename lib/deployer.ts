@@ -274,7 +274,9 @@ export async function generate(settings: GenerateSettings) {
         deploymentAddress: predictedAddress,
         constructorArgs: deployInfo.args ?? [],
         ...baseTransaction,
-        gas: await estimateGas(from, baseTransaction, chainId, transactionId),
+        gas:
+          deployInfo.gas ??
+          (await estimateGas(from, baseTransaction, chainId, transactionId)),
         from: from,
         transactionSettings: {
           chainId: chainId,
@@ -327,7 +329,9 @@ export async function generate(settings: GenerateSettings) {
         functionName: executeInfo.function,
         functionArgs: executeInfo.args ?? [],
         ...baseTransaction,
-        gas: await estimateGas(from, baseTransaction, chainId, transactionId),
+        gas:
+          executeInfo.gas ??
+          (await estimateGas(from, baseTransaction, chainId, transactionId)),
         from: from,
         transactionSettings: {
           chainId: chainId,

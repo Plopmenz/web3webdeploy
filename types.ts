@@ -125,6 +125,7 @@ export interface DeployInfo {
   from?: Address
   chainId?: number
   nonce?: bigint
+  gas?: bigint
   baseFee?: bigint
   priorityFee?: bigint
   value?: bigint
@@ -141,6 +142,7 @@ export interface ExecuteInfo {
   from?: Address
   chainId?: number
   nonce?: bigint
+  gas?: bigint
   baseFee?: bigint
   priorityFee?: bigint
   value?: bigint
