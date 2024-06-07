@@ -43,6 +43,7 @@ interface AllTransactions {
 export function Transactions() {
   const generateForm = z.object({
     baseFee: z.string().regex(new RegExp("[0-9]+.?[0-9]*")),
+    priorityFee: z.string().regex(new RegExp("[0-9]+.?[0-9]*")),
     batchId: z.string().min(1, "This cannot be empty"),
   })
 
@@ -57,6 +58,7 @@ export function Transactions() {
     resolver: zodResolver(generateForm),
     defaultValues: {
       baseFee: "0.0",
+      priorityFee: "0.01",
     },
   })
 
@@ -98,7 +100,7 @@ export function Transactions() {
       const request: GenerateRequest = {
         defaultChainId: chainId,
         defaultBaseFee: customGasFee ? parseUnits(values.baseFee, 9) : baseFee,
-        defaultPriorityFee: Gwei(1),
+        defaultPriorityFee: parseUnits(values.priorityFee, 9),
         defaultFrom: address,
 
         batchId: values.batchId,
@@ -166,6 +168,21 @@ export function Transactions() {
                       >
                         {customGasFee ? "Set auto" : "Set custom"}
                       </Button>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="priorityFee"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Priority fee (gwei)</FormLabel>
+                  <FormControl>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input {...field} />
                     </div>
                   </FormControl>
                   <FormMessage />
