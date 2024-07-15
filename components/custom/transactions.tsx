@@ -302,10 +302,18 @@ export function Transactions() {
                       batchId={batchId}
                       transactionBatch={transactions.submitted[batchId]}
                       transactionComponent={(transaction, i) => (
-                        <SubmittedTransactionComponent
-                          transaction={transaction}
-                          key={i.toString()}
-                        />
+                        <div key={i}>
+                          <SubmittedTransactionComponent
+                            transaction={transaction}
+                          />
+                          {transaction.deployments?.map((_, i) => (
+                            <SubmittedTransactionComponent
+                              key={i}
+                              transaction={transaction}
+                              additionalDeploymentIndex={i}
+                            />
+                          ))}
+                        </div>
                       )}
                       key={i.toString()}
                     />
@@ -320,5 +328,5 @@ export function Transactions() {
 }
 
 function TransactionCategoryHeader({ header }: { header: string }) {
-  return <h1 className="font-bold text-2xl">{header}</h1>
+  return <h1 className="text-2xl font-bold">{header}</h1>
 }

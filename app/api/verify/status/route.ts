@@ -6,7 +6,7 @@ export async function POST(req: Request) {
   try {
     const settings = JSON.parse(await req.text()) as VerifyStatusRequest
     const verified = await checkVerified({
-      deploymentTransaction: settings.deploymentTransaction,
+      verifySettings: settings.verifySettings,
       service: settings.service,
     })
     return Response.json({ verified: verified }, { status: 200 })

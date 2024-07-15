@@ -1,78 +1,55 @@
-import { UnsignedDeploymentTransaction, VerificationServices } from "../types"
-import {
-  checkPendingEtherscan,
-  checkVerifiedEtherscan,
-  verifyEtherscan,
-} from "./verification/etherscan"
-import {
-  checkPendingSourcify,
-  checkVerifiedSourcify,
-  verifySourcify,
-} from "./verification/sourcify"
-import {
-  checkPendingTenderly,
-  checkVerifiedTenderly,
-  verifyTenderly,
-} from "./verification/tenderly"
+import { VerificationServices, VerifySettings } from "../types"
+import { EtherscanVerificationService } from "./verification/etherscan"
+import { SourcifyVerificationService } from "./verification/sourcify"
+import { TenderlyVerificationService } from "./verification/tenderly"
+import { VerificationService } from "./verification/verificationService"
+
+const verificationServices = {
+  [VerificationServices.Etherscan]: new EtherscanVerificationService(),
+  [VerificationServices.Sourcify]: new SourcifyVerificationService(),
+  [VerificationServices.Tenderly]: new TenderlyVerificationService(),
+}
+function getVerificationService(
+  service: VerificationServices
+): VerificationService {
+  if (!Object.hasOwn(verificationServices, service)) {
+    throw new Error(`Verification service not implemented (${service})`)
+  }
+
+  return verificationServices[service]
+}
 
 export async function verify({
-  deploymentTransaction,
+  verifySettings,
   service,
 }: {
-  deploymentTransaction: UnsignedDeploymentTransaction
+  verifySettings: VerifySettings
   service: VerificationServices
 }): Promise<string> {
-  switch (service) {
-    case VerificationServices.Etherscan:
-      return verifyEtherscan({ deploymentTransaction })
-    case VerificationServices.Sourcify:
-      return verifySourcify({ deploymentTransaction })
-    case VerificationServices.Tenderly:
-      return verifyTenderly({ deploymentTransaction })
-    default:
-      console.warn(`Verify not implemented for ${service}`)
-      return "NOTIMPLEMENTED"
-  }
+  const verificationService = getVerificationService(service)
+  return verificationService.verify(verifySettings)
 }
 
 export async function checkPending({
-  deploymentTransaction,
+  verifySettings,
   additionalInfo,
   service,
 }: {
-  deploymentTransaction: UnsignedDeploymentTransaction
+  verifySettings: VerifySettings
   additionalInfo: string
   service: VerificationServices
 }): Promise<{ verified: boolean; busy?: boolean; message: string }> {
-  switch (service) {
-    case VerificationServices.Etherscan:
-      return checkPendingEtherscan({ deploymentTransaction, additionalInfo })
-    case VerificationServices.Sourcify:
-      return checkPendingSourcify({ deploymentTransaction, additionalInfo })
-    case VerificationServices.Tenderly:
-      return checkPendingTenderly({ deploymentTransaction, additionalInfo })
-    default:
-      console.warn(`Check pending not implemented for ${service}`)
-      return { verified: false, message: "NOTIMPLEMENTED" }
-  }
+  const verificationService = getVerificationService(service)
+  return verificationService.checkPending(verifySettings, additionalInfo)
 }
 
 export async function checkVerified({
-  deploymentTransaction,
+  verifySettings,
   service,
 }: {
-  deploymentTransaction: UnsignedDeploymentTransaction
+  verifySettings: VerifySettings
   service: VerificationServices
 }): Promise<boolean> {
-  switch (service) {
-    case VerificationServices.Etherscan:
-      return checkVerifiedEtherscan({ deploymentTransaction })
-    case VerificationServices.Sourcify:
-      return checkVerifiedSourcify({ deploymentTransaction })
-    case VerificationServices.Tenderly:
-      return checkVerifiedTenderly({ deploymentTransaction })
-    default:
-      console.warn(`Check verified not implemented for ${service}`)
-      return false
-  }
+  const verificationService = getVerificationService(service)
+  return verificationService.checkVerified(verifySettings)
 }

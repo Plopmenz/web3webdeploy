@@ -25,6 +25,7 @@ import {
 import { getChainProvider } from "@/config/chain-provider"
 
 import {
+  AddDeployInfo,
   Address,
   Artifact,
   Bytes,
@@ -134,7 +135,7 @@ export async function generate(settings: GenerateSettings) {
   }
 
   const saveTransaction = async (
-    transaction: UnsignedDeploymentTransaction | UnsignedFunctionTransaction,
+    transaction: UnsignedTransactionBase,
     batchId: string
   ) => {
     const batchDir = path.join(config.unsignedTransactionsDir, batchId)
@@ -156,7 +157,10 @@ export async function generate(settings: GenerateSettings) {
   }
 
   const exportContract = async (
-    transaction: UnsignedDeploymentTransaction,
+    transaction: Pick<
+      UnsignedDeploymentTransaction,
+      "id" | "deploymentAddress" | "artifact"
+    >,
     batchId: string
   ) => {
     if (config.exportToOriginalProject) {
@@ -347,6 +351,46 @@ export async function generate(settings: GenerateSettings) {
 
       chainVariables[chainId].nonce[from]++
       return { receipt: receipt }
+    },
+    addDeploy: async (addDeployInfo: AddDeployInfo) => {
+      const chainId = addDeployInfo.chainId ?? settings.defaultChainId
+      const transactionId =
+        addDeployInfo.id ??
+        `${chainId}_${addDeployInfo.deploymentAddress}_${addDeployInfo.contract}`
+
+      const artifact = await getArtifactAndCompile(
+        addDeployInfo.contract,
+        getCurrentContext(),
+        compiledProjects
+      )
+
+      const transaction = await readFile(
+        path.join(
+          config.unsignedTransactionsDir,
+          settings.batchId,
+          `${addDeployInfo.addTo}.json`
+        ),
+        { encoding: "utf-8" }
+      ).then(stringToTransaction)
+      transaction.deployments ??= []
+      transaction.deployments.push({
+        id: transactionId,
+        deploymentAddress: addDeployInfo.deploymentAddress,
+        constructorArgs: addDeployInfo.args ?? [],
+        artifact: artifact,
+      })
+      await saveTransaction(transaction, settings.batchId)
+
+      if (addDeployInfo.export ?? config.defaultExport) {
+        await exportContract(
+          {
+            id: transactionId,
+            deploymentAddress: addDeployInfo.deploymentAddress,
+            artifact: artifact,
+          },
+          batchId
+        )
+      }
     },
     startContext: (context: string) => {
       executionContext.push(path.join(getCurrentContext(), context))

@@ -3,6 +3,7 @@ import {
   GenerateSettings,
   UnsignedDeploymentTransaction,
   VerificationServices,
+  VerifySettings,
 } from "@/types"
 
 export type GenerateRequest = GenerateSettings
@@ -14,17 +15,17 @@ export interface UnsignedToSubmittedRequest {
 }
 
 export interface VerifyRequest {
-  deploymentTransaction: UnsignedDeploymentTransaction
+  verifySettings: VerifySettings
   service: VerificationServices
 }
 
 export interface VerifyPendingRequest {
-  deploymentTransaction: UnsignedDeploymentTransaction
+  verifySettings: VerifySettings
   additionalInfo: string
   service: VerificationServices
 }
 
 export interface VerifyStatusRequest {
-  deploymentTransaction: UnsignedDeploymentTransaction
+  verifySettings: VerifySettings
   service: VerificationServices
 }

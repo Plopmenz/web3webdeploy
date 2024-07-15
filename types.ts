@@ -77,6 +77,13 @@ export interface TransactionSettings {
   priorityFee: bigint
 }
 
+export interface AdditionalDeployment {
+  id: string
+  deploymentAddress: Address
+  constructorArgs: any[]
+  artifact: Artifact
+}
+
 export interface UnsignedTransactionBase {
   type: "function" | "deployment"
   id: string
@@ -89,6 +96,8 @@ export interface UnsignedTransactionBase {
   from: Address
   transactionSettings: TransactionSettings
   source: string
+
+  deployments?: AdditionalDeployment[] // Deployments triggered by this transaction
 }
 
 export type UnsignedFunctionTransaction = UnsignedTransactionBase & {
@@ -148,6 +157,17 @@ export interface ExecuteInfo {
   value?: bigint
 }
 
+export interface AddDeployInfo {
+  addTo: string
+  contract: string
+  deploymentAddress: Address
+  args?: any[]
+  id?: string
+  chainId?: number
+
+  export?: boolean
+}
+
 export interface EventInfo {
   abi: AbiItem[] | string
   logs: Log[]
@@ -173,6 +193,7 @@ export interface Deployer {
   execute: (
     executeInfo: ExecuteInfo
   ) => Promise<{ receipt: TransactionReceipt }>
+  addDeploy: (addDeployInfo: AddDeployInfo) => Promise<void>
   startContext: (context: string) => void
   finishContext: () => void
 
@@ -181,7 +202,9 @@ export interface Deployer {
     deploymentInfo: LoadDeploymentInfo
   ) => Promise<any | undefined>
   getAbi: (contractName: string) => Promise<AbiItem[]>
-  getEvents: (eventInfo: EventInfo) => Promise<DecodeEventLogReturnType[]>
+  getEvents: (
+    eventInfo: EventInfo
+  ) => Promise<{ eventName: string; args: any }[]>
 }
 
 export interface DeployScript {
@@ -196,6 +219,13 @@ export interface GenerateSettings {
 
   batchId: string
   deploymentFile: string
+}
+
+export interface VerifySettings {
+  chainId: number
+  deploymentAddress: Address
+  artifact: Artifact
+  args: any[]
 }
 
 export enum VerificationServices {

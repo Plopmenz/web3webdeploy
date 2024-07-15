@@ -3,23 +3,57 @@
 import { Dispatch, SetStateAction, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
-  Address,
   SubmittedTransaction,
   UnsignedDeploymentTransaction,
   UnsignedTransactionBase,
   VerificationServices,
+  VerifySettings,
 } from "@/types"
 import axios from "axios"
 import { useWaitForTransactionReceipt } from "wagmi"
 
 import { getExplorer, getVerificationExplorer } from "@/lib/chains"
+import { Button } from "@/components/ui/button"
 import {
   VerifyPendingRequest,
   VerifyRequest,
   VerifyStatusRequest,
 } from "@/app/api/apiTypes"
 
-import { Button } from "../ui/button"
+function getVerifySettings(
+  transaction: UnsignedTransactionBase,
+  additionalDeploymentIndex?: number
+): VerifySettings | undefined {
+  if (additionalDeploymentIndex !== undefined) {
+    const additionalDeployment = transaction?.deployments?.at(
+      additionalDeploymentIndex
+    )
+    if (additionalDeployment === undefined) {
+      throw new Error(
+        `Invalid additional deployment index ${additionalDeploymentIndex} for transaction ${transaction.id}`
+      )
+    }
+
+    return {
+      chainId: transaction.transactionSettings.chainId,
+      deploymentAddress: additionalDeployment.deploymentAddress,
+      artifact: additionalDeployment.artifact,
+      args: additionalDeployment.constructorArgs,
+    }
+  }
+
+  if (transaction.type === "deployment") {
+    const tx = transaction as any as UnsignedDeploymentTransaction
+    return {
+      chainId: tx.transactionSettings.chainId,
+      deploymentAddress: tx.deploymentAddress,
+      artifact: tx.artifact,
+      args: tx.constructorArgs,
+    }
+  }
+
+  return undefined
+}
 
 enum VerifyState {
   NotVerified = "Not verified.",
@@ -27,12 +61,11 @@ enum VerifyState {
   Verified = "Verified!",
 }
 async function getVerified(
-  transaction: UnsignedTransactionBase,
+  verifySettings: VerifySettings,
   service: VerificationServices
 ): Promise<VerifyState> {
   const request: VerifyStatusRequest = {
-    // Might cause issues JSON.stringify with bigints? Can use the custom transactionToString, but will put whole transactionjson in string then (instead of actual sub-json)
-    deploymentTransaction: transaction as UnsignedDeploymentTransaction,
+    verifySettings: verifySettings,
     service: service,
   }
   const response = await axios.post(
@@ -44,13 +77,12 @@ async function getVerified(
 }
 
 async function pendingVerification(
-  transaction: UnsignedTransactionBase,
+  verifySettings: VerifySettings,
   additionalInfo: string,
   service: VerificationServices
 ): Promise<VerifyState> {
   const request: VerifyPendingRequest = {
-    // Might cause issues JSON.stringify with bigints? Can use the custom transactionToString, but will put whole transactionjson in string then (instead of actual sub-json)
-    deploymentTransaction: transaction as UnsignedDeploymentTransaction,
+    verifySettings: verifySettings,
     additionalInfo: additionalInfo,
     service: service,
   }
@@ -61,36 +93,41 @@ async function pendingVerification(
 
   if (!response.data.verified) {
     console.warn(
-      `Verification of ${transaction.id} with ${additionalInfo} returned with status ${response.data.message}`
+      `Verification of ${verifySettings.chainId}:${verifySettings.deploymentAddress} with ${additionalInfo} returned with status ${response.data.message}`
     )
   }
 
   if (response.data.busy) {
     console.log(response.data.busy)
     await new Promise((resolve) => setTimeout(resolve, 2000))
-    return pendingVerification(transaction, additionalInfo, service)
+    return pendingVerification(verifySettings, additionalInfo, service)
   }
   return response.data.verified ? VerifyState.Verified : VerifyState.NotVerified
 }
 
 async function startVerify(
-  transaction: UnsignedTransactionBase,
+  verifySettings: VerifySettings,
   service: VerificationServices
 ): Promise<VerifyState> {
   const request: VerifyRequest = {
-    // Might cause issues JSON.stringify with bigints? Can use the custom transactionToString, but will put whole transactionjson in string then (instead of actual sub-json)
-    deploymentTransaction: transaction as UnsignedDeploymentTransaction,
+    verifySettings: verifySettings,
     service: service,
   }
   const response = await axios.post("/api/verify", JSON.stringify(request))
-  return pendingVerification(transaction, response.data.verifyInfo, service)
+  return pendingVerification(verifySettings, response.data.verifyInfo, service)
 }
 
 export function SubmittedTransactionComponent({
   transaction,
+  additionalDeploymentIndex,
 }: {
   transaction: SubmittedTransaction
+  additionalDeploymentIndex?: number
 }) {
+  const verifySettings = useMemo(
+    () => getVerifySettings(transaction, additionalDeploymentIndex),
+    [transaction, additionalDeploymentIndex]
+  )
   const { isLoading, isError, error } = useWaitForTransactionReceipt({
     hash: transaction.submitted.transactionHash,
     chainId: transaction.transactionSettings.chainId,
@@ -114,58 +151,73 @@ export function SubmittedTransactionComponent({
   }
 
   useEffect(() => {
-    if (transaction.type !== "deployment") {
+    if (!verifySettings) {
       return
     }
 
     for (let i = 0; i < Object.values(VerificationServices).length; i++) {
       const service = Object.values(VerificationServices)[i]
-      getVerified(transaction, service)
+      getVerified(verifySettings, service)
         .then((status) => verified[service].set(status))
         .catch(console.error)
     }
-  }, [transaction, verified])
+  }, [verifySettings, verified])
 
   const explorer = getExplorer(transaction.transactionSettings.chainId)
   const verificationExplorer = getVerificationExplorer(
     transaction.transactionSettings.chainId
   )
+  const address =
+    additionalDeploymentIndex !== undefined
+      ? transaction.deployments?.at(additionalDeploymentIndex)
+          ?.deploymentAddress
+      : transaction.type === "deployment"
+        ? (transaction as any as UnsignedDeploymentTransaction)
+            .deploymentAddress
+        : undefined
 
   return (
-    <div className="grid grid-cols-1 gap-2 items-center">
+    <div className="grid grid-cols-1 items-center gap-2">
       <h2 className="text-l">
-        {transaction.type.toUpperCase()} {transaction.id}:
+        {transaction.type.toUpperCase()} {transaction.id}
+        {additionalDeploymentIndex !== undefined
+          ? ` (deployment #${additionalDeploymentIndex + 1})`
+          : ""}
+        :
       </h2>
-      <li>
-        Submitted: {transaction.submitted.date.toLocaleDateString()} at{" "}
-        {transaction.submitted.date.toLocaleTimeString()}
-      </li>
-      {transaction.type === "deployment" && (
+      {additionalDeploymentIndex === undefined && (
+        <>
+          {" "}
+          <li>
+            Submitted: {transaction.submitted.date.toLocaleDateString()} at{" "}
+            {transaction.submitted.date.toLocaleTimeString()}
+          </li>
+          <div className="grid grid-cols-2 items-center">
+            <li>
+              Status: {isLoading ? "Waiting for confirmation..." : "Confirmed!"}
+            </li>
+            {explorer && (
+              <Link
+                href={`${explorer.url}/tx/${transaction.submitted.transactionHash}`}
+                target="_blank"
+                passHref
+              >
+                <Button className="w-full">View on {explorer.name}</Button>
+              </Link>
+            )}
+            {isError && <h2>Error!! {error?.message}</h2>}
+          </div>
+        </>
+      )}
+      {address && (
         <li>
-          Address:{" "}
-          {
-            (transaction as any as UnsignedDeploymentTransaction)
-              .deploymentAddress
-          }
+          <Link href={`${explorer?.url}/address/${address}`} target="_blank">
+            Address: {address}
+          </Link>
         </li>
       )}
-      <div className="grid grid-cols-2 items-center">
-        <li>
-          Status: {isLoading ? "Waiting for confirmation..." : "Confirmed!"}
-        </li>
-        {explorer && (
-          <Link
-            href={`${explorer.url}/tx/${transaction.submitted.transactionHash}`}
-            target="_blank"
-            passHref
-          >
-            <Button className="w-full">View on {explorer.name}</Button>
-          </Link>
-        )}
-        {isError && <h2>Error!! {error?.message}</h2>}
-      </div>
-      {transaction.type === "deployment" && !isLoading && !isError && (
-        <div className="grid grid-cols-1 gap-2 items-center">
+      {verifySettings && !isLoading && !isError && (
+        <div className="grid grid-cols-1 items-center gap-2">
           <VerifyButton
             serviceName={verificationExplorer?.name}
             service={VerificationServices.Etherscan}
@@ -174,7 +226,7 @@ export function SubmittedTransactionComponent({
               verified[VerificationServices.Etherscan].set(
                 VerifyState.Verifying
               )
-              startVerify(transaction, VerificationServices.Etherscan)
+              startVerify(verifySettings, VerificationServices.Etherscan)
                 .then((status) =>
                   verified[VerificationServices.Etherscan].set(status)
                 )
@@ -186,19 +238,19 @@ export function SubmittedTransactionComponent({
             verificationState={verified[VerificationServices.Sourcify].value}
             onClick={() => {
               verified[VerificationServices.Sourcify].set(VerifyState.Verifying)
-              startVerify(transaction, VerificationServices.Sourcify)
+              startVerify(verifySettings, VerificationServices.Sourcify)
                 .then((status) =>
                   verified[VerificationServices.Sourcify].set(status)
                 )
                 .catch(console.error)
             }}
-          />{" "}
+          />
           <VerifyButton
             service={VerificationServices.Tenderly}
             verificationState={verified[VerificationServices.Tenderly].value}
             onClick={() => {
               verified[VerificationServices.Tenderly].set(VerifyState.Verifying)
-              startVerify(transaction, VerificationServices.Tenderly)
+              startVerify(verifySettings, VerificationServices.Tenderly)
                 .then((status) =>
                   verified[VerificationServices.Tenderly].set(status)
                 )

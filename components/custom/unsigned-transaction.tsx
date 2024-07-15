@@ -11,9 +11,8 @@ import { useWalletClient } from "wagmi"
 
 import { chains } from "@/config/wagmi-config"
 import { getChain } from "@/lib/chains"
+import { Button } from "@/components/ui/button"
 import { UnsignedToSubmittedRequest } from "@/app/api/apiTypes"
-
-import { Button } from "../ui/button"
 
 export function UnsignedTransactionComponent({
   transaction,
@@ -98,7 +97,7 @@ export function UnsignedTransactionComponent({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-2 items-center">
+    <div className="grid grid-cols-1 items-center gap-2">
       <h2 className="text-l">
         {transaction.type.toUpperCase()} {transaction.id}:
       </h2>

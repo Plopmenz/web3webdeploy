@@ -6,7 +6,7 @@ export async function POST(req: Request) {
   try {
     const settings = JSON.parse(await req.text()) as VerifyPendingRequest
     const status = await checkPending({
-      deploymentTransaction: settings.deploymentTransaction,
+      verifySettings: settings.verifySettings,
       additionalInfo: settings.additionalInfo,
       service: settings.service,
     })

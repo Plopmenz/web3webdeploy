@@ -9,7 +9,7 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "../ui/accordion"
+} from "@/components/ui/accordion"
 
 export function TransactionBatch<T extends UnsignedTransactionBase>({
   batchId,
@@ -24,7 +24,7 @@ export function TransactionBatch<T extends UnsignedTransactionBase>({
     <Accordion type="single" collapsible>
       <AccordionItem value="item-1">
         <AccordionTrigger>
-          <h1 className="font-bold text-xl">{batchId}</h1>
+          <h1 className="text-xl font-bold">{batchId}</h1>
         </AccordionTrigger>
         <AccordionContent>
           <div className="grid grid-cols-1 gap-3">
