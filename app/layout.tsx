@@ -1,5 +1,4 @@
 import "@/styles/globals.css"
-import "@rainbow-me/rainbowkit/styles.css"
 
 import { Metadata, Viewport } from "next"
 import { config as dotEnvConfig } from "dotenv"
@@ -55,7 +54,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
                 <SiteHeader />
                 <div className="flex-1">{children}</div>
               </div>
-              <TailwindIndicator />{" "}
+              <TailwindIndicator />
             </Web3Provider>
           </ThemeProvider>
         </body>

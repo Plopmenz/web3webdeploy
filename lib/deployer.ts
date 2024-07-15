@@ -453,9 +453,12 @@ export async function generate(settings: GenerateSettings) {
   }
 
   // execute deploy script
-  const fileContent = await readFile(config.deployFile, {
-    encoding: "utf-8",
-  })
+  const fileContent = await readFile(
+    path.join(config.deployDir, settings.deploymentFile),
+    {
+      encoding: "utf-8",
+    }
+  )
 
   // Transform ts file to a single js file (without imports)
   const bundle = await esbuild.build({
@@ -466,20 +469,20 @@ export async function generate(settings: GenerateSettings) {
       contents: fileContent,
       loader: "ts",
       resolveDir: path.resolve(config.deployDir),
-      sourcefile: path.resolve(config.deployFile),
+      sourcefile: path.resolve(settings.deploymentFile),
     },
     tsconfig: path.join(config.projectRoot, "tsconfig.json"),
   })
   const jsContent = bundle.outputFiles[0].text
 
-  var m = new Module(config.deployFile) as any // Type signatures do not expose _compile
+  var m = new Module(settings.deploymentFile) as any // Type signatures do not expose _compile
   m._compile(jsContent, "")
   const deployScript: DeployScript = m.exports
 
   if (!deployScript?.deploy) {
     console.warn(
       `Script ${path.resolve(
-        config.deployFile
+        settings.deploymentFile
       )} does not export a correct deploy function. Deployment skipped.`
     )
   } else {
@@ -571,6 +574,16 @@ export async function getSubmittedTransactions(): Promise<{
     )
     return {}
   }
+}
+
+export async function getDeploymentFiles(): Promise<string[]> {
+  const config = await getConfig()
+  const deploymentFiles = await readdir(config.deployDir, {
+    withFileTypes: true,
+  })
+  return deploymentFiles
+    .filter((file) => file.isFile())
+    .map((file) => file.name)
 }
 
 async function getArtifactAndCompile(

@@ -195,6 +195,7 @@ export interface GenerateSettings {
   defaultPriorityFee: bigint
 
   batchId: string
+  deploymentFile: string
 }
 
 export enum VerificationServices {

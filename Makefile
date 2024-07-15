@@ -1,9 +1,11 @@
+NPM = $(shell node -p "require('../web3webdeploy.config.json').packageManager ?? 'npm'")
+
 node_modules:
-	npm i
+	$(NPM) i
 
 .next: node_modules
-	npm run build
+	$(NPM) run build
 
 deploy: .next node_modules
-	npm run start
+	$(NPM) run start
 .PHONY: deploy

@@ -1,19 +1,22 @@
 "use client"
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { createWeb3Modal } from "@web3modal/wagmi"
 import { WagmiProvider } from "wagmi"
 
-import { config } from "@/config/wagmi-config"
-import { ThemedRaindbowProvider } from "@/components/custom/themed-rainbow-provider"
+import { config, projectId } from "@/config/wagmi-config"
+
+const queryClient = new QueryClient()
+
+createWeb3Modal({
+  wagmiConfig: config,
+  projectId: projectId,
+})
 
 export function Web3Provider({ children }: { children: React.ReactNode }) {
-  const queryClient = new QueryClient()
-
   return (
     <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <ThemedRaindbowProvider>{children}</ThemedRaindbowProvider>
-      </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </WagmiProvider>
   )
 }

@@ -5,14 +5,21 @@ import "@/lib/bigintJson"
 import { useEffect, useState } from "react"
 import { SubmittedTransaction, UnsignedTransactionBase } from "@/types"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useQuery } from "@tanstack/react-query"
 import axios from "axios"
 import { useForm } from "react-hook-form"
 import { formatUnits, parseUnits } from "viem"
 import { useAccount, useChainId, usePublicClient } from "wagmi"
 import * as z from "zod"
 
-import { Gwei, gwei } from "@/lib/etherUnits"
 import { sanitizeTransaction } from "@/lib/transactionString"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import { Button } from "@/components/ui/button"
 import {
   Form,
   FormControl,
@@ -22,16 +29,16 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { GenerateRequest } from "@/app/api/apiTypes"
 
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "../ui/accordion"
-import { Button } from "../ui/button"
-import { Input } from "../ui/input"
 import { SubmittedTransactionComponent } from "./submitted-transaction"
 import { TransactionBatch } from "./transaction-batch"
 import { UnsignedTransactionComponent } from "./unsigned-transaction"
@@ -45,6 +52,7 @@ export function Transactions() {
     baseFee: z.string().regex(new RegExp("[0-9]+.?[0-9]*")),
     priorityFee: z.string().regex(new RegExp("[0-9]+.?[0-9]*")),
     batchId: z.string().min(1, "This cannot be empty"),
+    deploymentFile: z.string(),
   })
 
   const [generating, setGenerating] = useState<boolean>(false)
@@ -59,6 +67,7 @@ export function Transactions() {
     defaultValues: {
       baseFee: "0.0",
       priorityFee: "0.01",
+      deploymentFile: "deploy.ts",
     },
   })
 
@@ -104,6 +113,7 @@ export function Transactions() {
         defaultFrom: address,
 
         batchId: values.batchId,
+        deploymentFile: values.deploymentFile,
       }
       await axios.post("/api/generate", JSON.stringify(request))
     }
@@ -141,6 +151,14 @@ export function Transactions() {
 
     getTransactions().catch(console.error)
   }, [generating])
+
+  const { data: deploymentFiles } = useQuery({
+    queryKey: ["deploymentFiles"],
+    queryFn: async () => {
+      const { data } = await axios.post("/api/deploymentFiles")
+      return data as string[]
+    },
+  })
 
   return (
     <div>
@@ -185,6 +203,36 @@ export function Transactions() {
                       <Input {...field} />
                     </div>
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="deploymentFile"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Deployment File</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pick deployment file" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {deploymentFiles?.map((deploymentFile, i) => (
+                        <SelectItem key={i} value={deploymentFile}>
+                          {deploymentFile}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    The deployment file to run to generate the transactions.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

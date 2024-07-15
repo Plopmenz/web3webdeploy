@@ -14,7 +14,6 @@ export interface Config {
 
   projectRoot: string
   deployDir: string
-  deployFile: string
   deploymentDir: string
   unsignedTransactionsDir: string
   submittedTransactionsDir: string
@@ -77,7 +76,6 @@ export async function getConfig(startingPath?: string): Promise<Config> {
 
     configFile.projectRoot ??= configPath
     configFile.deployDir ??= path.join(configFile.projectRoot, "deploy")
-    configFile.deployFile ??= path.join(configFile.deployDir, "deploy.ts")
     configFile.deploymentDir ??= path.join(configFile.projectRoot, "deployed")
     configFile.unsignedTransactionsDir ??= path.join(
       configFile.deploymentDir,
